@@ -87,7 +87,7 @@ static void bsp_spi_cfg_init(void)
     @param[in]  : none
     @param[out] : none
     @retval     : none
-    @note       : 尚未在 main 中调用 (Task 12 集成), 未调用不产生副作用
+    @note       : 已在 app_main.c 分层初始化中调用 (Task 12 集成)
 */
 void bsp_spi_init(void)
 {

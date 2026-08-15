@@ -127,9 +127,10 @@ static void task_upload_cb(MultiTimer *timer, void *user_data)
                      简单实现每帧全量写 15 路, 可靠且无状态比较开销
                      (优化空间: 与上次帧比较仅写变化路, 联调稳定后可做)
                   c. power_flush_limits     4 片 DAC LDAC 同步刷新
-                  d. 首次收到帧且 FPGA 未明确开关 (switch_state==0) 且
-                     default_state!=0: 应用开机默认状态 (待联调确认语义)
-                  e. power_apply_state      应用 FPGA 下发开关状态
+                  d. 开关应用: 仅首帧且 FPGA 未下发开关指令
+                     (switch_state==0 且 default_state!=0) 时按默认状态
+                     初始化, 其余情况 (含后续帧) 一律应用 switch_state;
+                     if/else 二选一防止 EN 毛刺 (待联调确认 FPGA 侧语义)
                   解析诊断打印由 app_protocol.c 负责, 本层不再重复打印
     @param[in]  : timer     MultiTimer 句柄 (重注册用)
                   user_data 未使用
@@ -159,16 +160,18 @@ static void task_proto_cb(MultiTimer *timer, void *user_data)
         /* c. 4 片 DAC LDAC 脉冲同步刷新 */
         power_flush_limits();
 
-        /* d. 开机默认状态: 首次收帧且 FPGA 未明确开关且默认状态非 0
-           (待联调确认语义) */
+        /* d. 开机默认状态: 仅首帧且 FPGA 未下发开关指令时生效;
+           否则 (含后续帧) 一律以 switch_state 为准; if/else 二选一,
+           避免 apply(default) 后立即 apply(switch==0) 自抵消造成
+           每路 EN 开-关毛刺 (清锁存+软启动后立刻断电)
+           (待联调确认 FPGA 侧语义) */
         if (s_first_frame == 0u &&
             s_down_ps.switch_state == 0u &&
             s_down_ps.default_state != 0u) {
             power_apply_state(s_down_ps.default_state);
+        } else {
+            power_apply_state(s_down_ps.switch_state);
         }
-
-        /* e. 应用 FPGA 下发开关状态 */
-        power_apply_state(s_down_ps.switch_state);
 
         /* 记录 FPGA 默认状态字供上传帧回告 */
         s_default_state = s_down_ps.default_state;

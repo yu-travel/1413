@@ -48,6 +48,11 @@ static dev_threshold_t s_thr[PROTO_DEV_NUM];
 /* 15 路告警状态字 */
 static u16 s_alarm_state;
 
+/* ADC 初始化失败掩码: bit0~3 = ADC_CH0~CH3 (lc1258_init ID 校验失败),
+   由 monitor_init 置位; CH0 电压/CH1 电流失效会使对应设备报告假 0 数据,
+   告警判定时据此强制置位设备告警 (见 monitor_alarm_eval) */
+static u8 s_adc_fault_mask;
+
 /* 全局监测数据实例 */
 monitor_data_t g_monitor;
 
@@ -262,8 +267,11 @@ static void monitor_convert_aux(void)
                    2. 硬件信号: g_dev_map[].fault_port[] 低电平 = 故障
                     (5016 的 fault_port 是 GOK/GOC, 同约定)
                    3. FAULT 译码: DYGY/GSDJ 类型非 NORMAL → 置对应告警位
-                   4. VCC_*_ALERT 4 路不映射到 15 路 (协议 bit0 预留),
-                    记录到 aux_alarm 位0~3
+                   4. ADC 采集通道失效: CH0/CH1 ID 校验失败置
+                    s_adc_fault_mask, 全 15 路对应物理量为假 0,
+                    置告警位防 FPGA 误信 (CH2 温度/CH3 辅助失效不置)
+                   5. VCC_*_ALERT 4 路不映射到 15 路 (协议 bit0 预留),
+                     记录到 aux_alarm 位0~3
     @param[in]  : none
     @param[out] : none
     @retval     : none
@@ -303,6 +311,16 @@ static void monitor_alarm_eval(void)
             fault = 1u;
         }
 
+        /* ADC 采集通道失效视为故障: 电压恒由 CH0 (U2) 采集、电流恒由
+           CH1 (U5) 采集, 对应片 ID 校验失败时全 15 路该物理量为假 0,
+           置告警位防止 FPGA 把假零数据当有效测量;
+           CH2 (温度) 失效仅本地温度监测缺失, 不置告警;
+           CH3 (辅助量) 失效仅影响辅助量, 不进 15 路告警字 */
+        if ((s_adc_fault_mask & (u8)MON_ALARM_BIT(ADC_IDX_CH0)) != 0u ||
+            (s_adc_fault_mask & (u8)MON_ALARM_BIT(ADC_IDX_CH1)) != 0u) {
+            fault = 1u;
+        }
+
         if (fault != 0u) {
             alarm |= MON_ALARM_BIT(id);
         }
@@ -331,8 +349,11 @@ static void monitor_alarm_eval(void)
 /*
     @brief      : 采集初始化
     @note       : 4 片 LC1258 依次 lc1258_init (含 RST + ID 校验), 成功后
-                  lc1258_start 进入 Auto-Scan; 读取 Flash 45 组校准系数,
-                  失败时 bsp_flash_cal_read 内部已填充默认 k=1 b=0;
+                  lc1258_start 进入 Auto-Scan; 单片校验失败置
+                  s_adc_fault_mask 对应位降级运行 (不阻塞系统启动,
+                  CH0/CH1 失效设备由告警判定强制置位, 见 monitor_alarm_eval);
+                  读取 Flash 45 组校准系数, 失败时 bsp_flash_cal_read
+                  内部已填充默认 k=1 b=0;
                   g_adc_pin_map 为 const 只读表, Dev 层接口未声明 const,
                   此处强制转换仅去除 const 限定 (驱动不写句柄内容)
     @param[in]  : none
@@ -343,11 +364,16 @@ void monitor_init(void)
 {
     u8 i;
 
+    s_adc_fault_mask = 0u;
+
     for (i = 0u; i < 4u; i++) {
         if (lc1258_init((lc1258_handle_t *)&g_adc_pin_map[i]) != 0u) {
             lc1258_start((lc1258_handle_t *)&g_adc_pin_map[i]);
         } else {
+            /* 单片 ID 校验失败: 记录故障掩码降级运行, 对应设备
+               告警置位防假零数据 (见 monitor_alarm_eval) */
             TRACE_OUT(DEBUG_OUT, "monitor: ADC%d lc1258_init fail\r\n", i);
+            s_adc_fault_mask |= (u8)MON_ALARM_BIT(i);
         }
     }
 

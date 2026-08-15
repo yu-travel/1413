@@ -3,9 +3,9 @@
     @brief      : Software timer interface and loop processing
     @author     : xiongjiqi
     @date       : 24/07/01
-    @note       : 1. LED heartbeat moved to App layer (app_main.c task_led_cb),
-                   watchdog is fed by main loop; legacy blink timer removed
-                   2026-08 (Task12 integration)
+    @note       : 1. RTT heartbeat moved to App layer (app_main.c
+                   task_heartbeat_cb), watchdog is fed by main loop;
+                   legacy blink timer removed 2026-08 (Task12 integration)
 **************************************************************************************************************
 */
 #include "bsp_timer.h"
