@@ -9,17 +9,17 @@
                   3. 校验和: 帧头到校验和字段之前所有 16 位字段值累加,
                      保留低 16 位; 文档验证样例: 前导帧
                      0x55AA+0x0002+0xABDE=0x1018A -> sum=0x018A (已按本实现复核通过)
-                  4. 字节序假设: 帧内 u16 字段按小端组包 (低字节在前);
-                     例外: 下发帧头 0xAA55 按文档字节流直列大端读取
-                     (wire AA 55, 与上传帧头 0x55AA 小端 wire AA 55 相同,
-                     上下行靠方向区分); 待联调确认#3: 若 FPGA 实发小端
-                     55 AA, 需同步改扫描模式与 parse 的 rd16_be -> rd16_le
+                  4. 字节序: 文档前导帧字节列表 (55 AA / 00 02 / AB DE /
+                     01 8A / AC BC) 表明全部 u16 字段按大端组包
+                     (高字节在前); 待联调确认#3: 仅剩 FPGA 是否严格按
+                     文档字节序发送的联调验证, 切换点集中在
+                     put16_be/rd16_be 两个静态函数
                   5. 待确认#2 握手时序: 按"发前导帧后连续时钟接收下发帧"
                      标准 SPI 主从模式实现, 前导发送与接收窗口分段隔离,
                      联调调整点集中
-                  6. 下发帧定位: 4 字节模式扫描 (帧头 0xAA55 文档字节流
-                     AA 55 + 帧长 0x0060 小端 60 00 -> AA 55 60 00),
-                     前导回声 (AA 55 02 00) 不误命中;
+                  6. 下发帧定位: 4 字节模式扫描 (帧头 0xAA55 大端 AA 55
+                     + 帧长 0x0060 大端 00 60 -> AA 55 00 60),
+                     前导回声 (55 AA 00 02 ...) 不误命中;
                      候选解包失败从下一字节继续扫描, 容忍 FPGA 前导噪声偏移
 */
 
@@ -33,33 +33,20 @@
 #define PROTO_RX_WIN_LEN    (PROTO_PREAMBLE_LEN + FRAME_LEN_TOTAL)
 
 /*
-    @brief      : 小端写入 u16 (低字节在前)
+    @brief      : 大端写入 u16 (高字节在前, 文档字节列表约定)
     @param[in]  : buf  目标地址 (至少 2B)
                   val  数值
     @param[out] : none
     @retval     : none
 */
-static void put16_le(u8 *buf, u16 val)
+static void put16_be(u8 *buf, u16 val)
 {
-    buf[0] = (u8)(val & 0xFFu);
-    buf[1] = (u8)(val >> 8);
+    buf[0] = (u8)(val >> 8);
+    buf[1] = (u8)(val & 0xFFu);
 }
 
 /*
-    @brief      : 小端读取 u16 (低字节在前)
-    @param[in]  : buf 源地址 (至少 2B)
-    @param[out] : none
-    @retval     : 读出数值
-*/
-static u16 rd16_le(const u8 *buf)
-{
-    return (u16)((u16)buf[0] | ((u16)buf[1] << 8));
-}
-
-/*
-    @brief      : 大端读取 u16 (高字节在前)
-    @note       : 仅用于下发帧头 0xAA55: 文档帧头按字节流直列 (wire AA 55),
-                  与内容字段的小端组包不同 (待联调确认#3)
+    @brief      : 大端读取 u16 (高字节在前, 文档字节列表约定)
     @param[in]  : buf 源地址 (至少 2B)
     @param[out] : none
     @retval     : 读出数值
@@ -76,28 +63,31 @@ static u8 g_proto_last_err = PROTO_ERR_NONE;
 static u8 g_proto_fresh = 0u;
 
 /*
-    @brief      : 前导帧字节流 (小端, 共 10B)
-    @note       : 各字段由 app_config.h 协议宏按小端展开生成, 避免与宏值
-                  漂移; 校验和复核: 0x55AA+0x0002+0xABDE=0x1018A ->
+    @brief      : 前导帧字节流 (大端, 共 10B)
+    @note       : 各字段由 app_config.h 协议宏按大端展开生成, 避免与宏值
+                  漂移; wire 字节 = 55 AA 00 02 AB DE 01 8A AC BC,
+                  与文档前导帧字节列表逐一对应;
+                  校验和复核: 0x55AA+0x0002+0xABDE=0x1018A ->
                   低16位 0x018A, 与文档样例一致
 */
 static const u8 preamble_frame[PROTO_PREAMBLE_LEN] = {
-    (u8)(PROTO_HEAD_UP & 0xFFu),          /* 帧头 0x55AA 低字节 */
-    (u8)(PROTO_HEAD_UP >> 8),             /* 帧头高字节 */
-    (u8)(0x0002u & 0xFFu),                /* 帧长度 0x0002 低字节 (内容 2B) */
-    (u8)(0x0002u >> 8),                   /* 帧长度高字节 */
-    (u8)(PROTO_PREAMBLE_WORD & 0xFFu),    /* 读命令字 0xABDE 低字节 */
-    (u8)(PROTO_PREAMBLE_WORD >> 8),       /* 读命令字高字节 */
-    (u8)(PROTO_PREAMBLE_SUM & 0xFFu),     /* 校验和 0x018A 低字节 */
-    (u8)(PROTO_PREAMBLE_SUM >> 8),        /* 校验和高字节 */
-    (u8)(PROTO_TAIL & 0xFFu),             /* 帧尾 0xACBC 低字节 */
-    (u8)(PROTO_TAIL >> 8)                 /* 帧尾高字节 */
+    (u8)(PROTO_HEAD_UP >> 8),             /* 帧头 0x55AA 高字节 */
+    (u8)(PROTO_HEAD_UP & 0xFFu),          /* 帧头低字节 */
+    (u8)(0x0002u >> 8),                   /* 帧长度 0x0002 高字节 (内容 2B) */
+    (u8)(0x0002u & 0xFFu),                /* 帧长度低字节 */
+    (u8)(PROTO_PREAMBLE_WORD >> 8),       /* 读命令字 0xABDE 高字节 */
+    (u8)(PROTO_PREAMBLE_WORD & 0xFFu),    /* 读命令字低字节 */
+    (u8)(PROTO_PREAMBLE_SUM >> 8),        /* 校验和 0x018A 高字节 */
+    (u8)(PROTO_PREAMBLE_SUM & 0xFFu),     /* 校验和低字节 */
+    (u8)(PROTO_TAIL >> 8),                /* 帧尾 0xACBC 高字节 */
+    (u8)(PROTO_TAIL & 0xFFu)              /* 帧尾低字节 */
 };
 
 /*
     @brief      : 协议校验和计算
-    @note       : 按 16 位字段值累加 (小端解读), 保留低 16 位;
-                  n 应为偶数 (帧长恒偶), 奇数时末字节按低字节防御性计入
+    @note       : 按 16 位字段值累加 (大端解读, 与文档字节列表一致),
+                  保留低 16 位; n 应为偶数 (帧长恒偶),
+                  奇数时末字节按低字节防御性计入
     @param[in]  : buf 待校验数据
                   n   字节数
     @param[out] : none
@@ -113,7 +103,7 @@ u16 protocol_calc_sum(const u8 *buf, u16 n)
     }
 
     for (i = 0u; i + 1u < n; i += 2u) {
-        sum += rd16_le(&buf[i]);
+        sum += rd16_be(&buf[i]);
     }
 
     /* 奇数长度防御: 末字节计入低字节位 (正常帧长恒偶不会走到) */
@@ -144,40 +134,39 @@ u16 protocol_build_upload(u8 *buf, const dev_measure_t *m, const power_state_t *
         return 0u;
     }
 
-    /* 帧头 0x55AA 小端 (wire AA 55, 与下发帧头 wire AA 55 相同,
-       上下行靠方向区分, 待联调确认#3) */
-    put16_le(&buf[idx], PROTO_HEAD_UP);
+    /* 帧头 0x55AA 大端 (wire 55 AA, 与文档字节列表一致) */
+    put16_be(&buf[idx], PROTO_HEAD_UP);
     idx += 2u;
 
     /* 帧长度 = 内容字节数 0x0060 (96B); 待确认#1: 文档写 0x5F(95B),
        实际内容 90+6=96B, 以 0x60 实现 */
-    put16_le(&buf[idx], FRAME_LEN_CONTENT);
+    put16_be(&buf[idx], FRAME_LEN_CONTENT);
     idx += 2u;
 
     /* 内容: 15 组 ID+电压+电流 (按 m 数组顺序, 由调用方保证 ID 1~15 升序) */
     for (i = 0u; i < PROTO_DEV_NUM; i++) {
-        put16_le(&buf[idx], m[i].id);
+        put16_be(&buf[idx], m[i].id);
         idx += 2u;
-        put16_le(&buf[idx], m[i].vol_mv);
+        put16_be(&buf[idx], m[i].vol_mv);
         idx += 2u;
-        put16_le(&buf[idx], m[i].cur_ma);
+        put16_be(&buf[idx], m[i].cur_ma);
         idx += 2u;
     }
 
     /* 状态字: 默认状态 / 开关状态 / 告警状态 */
-    put16_le(&buf[idx], ps->default_state);
+    put16_be(&buf[idx], ps->default_state);
     idx += 2u;
-    put16_le(&buf[idx], ps->switch_state);
+    put16_be(&buf[idx], ps->switch_state);
     idx += 2u;
-    put16_le(&buf[idx], ps->alarm_state);
+    put16_be(&buf[idx], ps->alarm_state);
     idx += 2u;
 
     /* 校验和: 帧头到校验和字段之前 (idx 字节) */
-    put16_le(&buf[idx], protocol_calc_sum(buf, idx));
+    put16_be(&buf[idx], protocol_calc_sum(buf, idx));
     idx += 2u;
 
     /* 帧尾 0xACBC */
-    put16_le(&buf[idx], PROTO_TAIL);
+    put16_be(&buf[idx], PROTO_TAIL);
     idx += 2u;
 
     return idx;
@@ -210,56 +199,55 @@ u8 protocol_parse_down(const u8 *buf, u16 len, dev_threshold_t *thr, power_state
         return 0u;
     }
 
-    /* 帧头 0xAA55: 按文档字节流直列大端读取 (wire AA 55, 待联调确认#3,
-       若 FPGA 实发小端 55 AA 需同步改扫描模式与此处为 rd16_le) */
+    /* 帧头 0xAA55 (大端 wire AA 55, 与文档字节列表一致) */
     if (rd16_be(&buf[0]) != PROTO_HEAD_DOWN) {
         g_proto_last_err = PROTO_ERR_NO_HEAD;
         TRACE_OUT(DEBUG_OUT, "protocol: head mismatch 0x%04X\r\n", rd16_be(&buf[0]));
         return 0u;
     }
 
-    /* 帧长度 = 内容字节数 0x0060 */
-    if (rd16_le(&buf[2]) != FRAME_LEN_CONTENT) {
+    /* 帧长度 = 内容字节数 0x0060 (大端 wire 00 60) */
+    if (rd16_be(&buf[2]) != FRAME_LEN_CONTENT) {
         g_proto_last_err = PROTO_ERR_LEN;
-        TRACE_OUT(DEBUG_OUT, "protocol: length field mismatch 0x%04X\r\n", rd16_le(&buf[2]));
+        TRACE_OUT(DEBUG_OUT, "protocol: length field mismatch 0x%04X\r\n", rd16_be(&buf[2]));
         return 0u;
     }
 
     /* 校验和: 帧头到校验和字段之前 (按帧定长 104B, 与入参 len 解耦,
        防止 len 大于帧长时把帧尾垃圾字节计入) */
-    if (protocol_calc_sum(buf, FRAME_LEN_TOTAL - 4u) != rd16_le(&buf[FRAME_LEN_TOTAL - 4u])) {
+    if (protocol_calc_sum(buf, FRAME_LEN_TOTAL - 4u) != rd16_be(&buf[FRAME_LEN_TOTAL - 4u])) {
         g_proto_last_err = PROTO_ERR_SUM;
         TRACE_OUT(DEBUG_OUT, "protocol: checksum mismatch calc=0x%04X rx=0x%04X\r\n",
                   protocol_calc_sum(buf, FRAME_LEN_TOTAL - 4u),
-                  rd16_le(&buf[FRAME_LEN_TOTAL - 4u]));
+                  rd16_be(&buf[FRAME_LEN_TOTAL - 4u]));
         return 0u;
     }
 
     /* 帧尾 0xACBC */
-    if (rd16_le(&buf[FRAME_LEN_TOTAL - 2u]) != PROTO_TAIL) {
+    if (rd16_be(&buf[FRAME_LEN_TOTAL - 2u]) != PROTO_TAIL) {
         g_proto_last_err = PROTO_ERR_TAIL;
         TRACE_OUT(DEBUG_OUT, "protocol: tail mismatch 0x%04X\r\n",
-                  rd16_le(&buf[FRAME_LEN_TOTAL - 2u]));
+                  rd16_be(&buf[FRAME_LEN_TOTAL - 2u]));
         return 0u;
     }
 
     /* 内容: 15 组 ID+基准电压+基准电流 */
     idx = 4u;
     for (i = 0u; i < PROTO_DEV_NUM; i++) {
-        thr[i].id = rd16_le(&buf[idx]);
+        thr[i].id = rd16_be(&buf[idx]);
         idx += 2u;
-        thr[i].ref_vol_mv = rd16_le(&buf[idx]);
+        thr[i].ref_vol_mv = rd16_be(&buf[idx]);
         idx += 2u;
-        thr[i].ref_cur_ma = rd16_le(&buf[idx]);
+        thr[i].ref_cur_ma = rd16_be(&buf[idx]);
         idx += 2u;
     }
 
     /* 状态字 */
-    ps->default_state = rd16_le(&buf[idx]);
+    ps->default_state = rd16_be(&buf[idx]);
     idx += 2u;
-    ps->switch_state = rd16_le(&buf[idx]);
+    ps->switch_state = rd16_be(&buf[idx]);
     idx += 2u;
-    ps->alarm_state = rd16_le(&buf[idx]);
+    ps->alarm_state = rd16_be(&buf[idx]);
 
     g_proto_last_err = PROTO_ERR_NONE;
     return 1u;
@@ -295,10 +283,10 @@ static const u8 dummy_tx[FRAME_LEN_TOTAL] = {0};
                      第1段 发前导 10B (同时收回声);
                      第2段 发哑字节 104B 连续时钟收下发帧 (帧全长 104B,
                      若只发 96B 会少收帧尾 8B, 故取帧全长)
-                  2. 帧定位: 4 字节模式扫描 (帧头 0xAA55 文档字节流 AA 55
-                     + 帧长 0x0060 小端 60 00 -> AA 55 60 00); 前导回声为
-                     AA 55 02 00 不会误命中; 候选解包失败则从下一字节继续
-                     扫描, 容忍 FPGA 前导噪声或回声偏移, 直到窗口耗尽
+                  2. 帧定位: 4 字节模式扫描 (帧头 0xAA55 大端 AA 55
+                     + 帧长 0x0060 大端 00 60 -> AA 55 00 60); 前导回声为
+                     55 AA 00 02 ... 不会误命中; 候选解包失败则从下一字节
+                     继续扫描, 容忍 FPGA 前导噪声或回声偏移, 直到窗口耗尽
                   3. 握手时序 (待确认#2) 的调整点集中在本函数两段传输
                      与扫描窗口, 不影响组包/解包逻辑
     @param[in]  : none
@@ -319,16 +307,15 @@ u8 protocol_read_task(void)
     bsp_spi_transfer(dummy_tx, &rx_buf[PROTO_PREAMBLE_LEN], FRAME_LEN_TOTAL);
     bsp_spi_cs(BSP_SPI_CS_HIGH);
 
-    /* 4 字节模式扫描: 帧头 0xAA55 文档字节流 AA 55 + 帧长 0x0060 小端
-       60 00 -> 模式 AA 55 60 00; 前导回声为 AA 55 02 00 不会误命中
-       (待联调确认#3: 若 FPGA 实发小端帧头 55 AA, 模式需改 55 AA 60 00);
+    /* 4 字节模式扫描: 帧头 0xAA55 大端 AA 55 + 帧长 0x0060 大端 00 60
+       -> 模式 AA 55 00 60; 前导回声为 55 AA 00 02 ... 不会误命中;
        边界保持 i+3 < PROTO_RX_WIN_LEN (即 i+4 <= 窗口长度) */
     candidate_found = 0u;
     for (i = 0u; i + 4u <= PROTO_RX_WIN_LEN; i++) {
         if (rx_buf[i] == (u8)(PROTO_HEAD_DOWN >> 8) &&
             rx_buf[i + 1u] == (u8)(PROTO_HEAD_DOWN & 0xFFu) &&
-            rx_buf[i + 2u] == (u8)(FRAME_LEN_CONTENT & 0xFFu) &&
-            rx_buf[i + 3u] == (u8)(FRAME_LEN_CONTENT >> 8)) {
+            rx_buf[i + 2u] == (u8)(FRAME_LEN_CONTENT >> 8) &&
+            rx_buf[i + 3u] == (u8)(FRAME_LEN_CONTENT & 0xFFu)) {
             candidate_found = 1u;
 
             /* 候选处剩余字节须容纳完整帧, 否则视为噪声继续扫描 */
