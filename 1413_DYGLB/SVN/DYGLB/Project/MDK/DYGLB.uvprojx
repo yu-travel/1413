@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F40_41xxx,USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\App;..\..\Bsp;..\..\Core;..\..\Dev;..\..\FWLIB\inc;..\..\Hardware\BSP;..\..\Hardware\BSP_Port;..\..\Middleware\alloc;..\..\Middleware\logger;..\..\Middleware\MultiTimer;..\..\Middleware\Ring-Buffer;..\..\User;..\..\Utilities;..\RTT</IncludePath>
+              <IncludePath>..\..\App;..\..\Bsp;..\..\Core;..\..\Dev;..\..\FWLIB\inc;..\..\Middleware\alloc;..\..\Middleware\logger;..\..\Middleware\MultiTimer;..\..\Middleware\Ring-Buffer;..\..\User;..\..\Utilities;..\RTT</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
