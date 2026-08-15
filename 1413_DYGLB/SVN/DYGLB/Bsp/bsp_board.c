@@ -38,7 +38,7 @@
 */
 const dev_map_t g_dev_map[DEV_NUM] = {
     /* [0] DEV_INVALID 占位槽 (全 0 填充) */
-    {
+    [DEV_INVALID] = {
         DEV_INVALID,        /* id */
         { 0 },              /* name */
         0,                  /* en_port */
@@ -55,7 +55,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         0,                  /* chip_type */
     },
     /* [1] DEV_KF 28V_KF: 双 MAC5048 (KF1/KF2), 使能共享 PD0 */
-    {
+    [DEV_KF] = {
         DEV_KF,                     /* id */
         "28V_KF",                   /* name */
         KF_PWR_EN_PORT,             /* en_port */
@@ -72,7 +72,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [2] DEV_DTJ 28V_DTJ */
-    {
+    [DEV_DTJ] = {
         DEV_DTJ,                    /* id */
         "28V_DTJ",                  /* name */
         DTJ_PWR_EN_PORT,            /* en_port */
@@ -89,7 +89,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [3] DEV_DYGY 12V_DYGY: HQEF5016, 数字状态引脚 GOK/GOC, FAULT 走模拟量 AIN10 */
-    {
+    [DEV_DYGY] = {
         DEV_DYGY,                   /* id */
         "12V_DYGY",                 /* name */
         DYGY_PWR_EN_PORT,           /* en_port */
@@ -106,7 +106,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_HQEF5016,         /* chip_type */
     },
     /* [4] DEV_QGSJ 28V_QGSJ */
-    {
+    [DEV_QGSJ] = {
         DEV_QGSJ,                   /* id */
         "28V_QGSJ",                 /* name */
         QGSJ_PWR_EN_PORT,           /* en_port */
@@ -123,7 +123,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [5] DEV_SFXJ1 28V_SFXJ1 */
-    {
+    [DEV_SFXJ1] = {
         DEV_SFXJ1,                  /* id */
         "28V_SFXJ1",                /* name */
         SFXJ1_PWR_EN_PORT,          /* en_port */
@@ -140,7 +140,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [6] DEV_SFXJ2 28V_SFXJ2 */
-    {
+    [DEV_SFXJ2] = {
         DEV_SFXJ2,                  /* id */
         "28V_SFXJ2",                /* name */
         SFXJ2_PWR_EN_PORT,          /* en_port */
@@ -157,7 +157,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [7] DEV_GSDJ 12V_GSDJ: HQEF5016, GOK/GOC, FAULT 走模拟量 AIN11 */
-    {
+    [DEV_GSDJ] = {
         DEV_GSDJ,                   /* id */
         "12V_GSDJ",                 /* name */
         GSDJ_PWR_EN_PORT,           /* en_port */
@@ -174,7 +174,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_HQEF5016,         /* chip_type */
     },
     /* [8] DEV_WAOXJ 28V_WAOXJ */
-    {
+    [DEV_WAOXJ] = {
         DEV_WAOXJ,                  /* id */
         "28V_WAOXJ",                /* name */
         WAOXJ_PWR_EN_PORT,          /* en_port */
@@ -191,7 +191,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [9] DEV_HWXJ1 28V_HWXJ1 */
-    {
+    [DEV_HWXJ1] = {
         DEV_HWXJ1,                  /* id */
         "28V_HWXJ1",                /* name */
         HWXJ1_PWR_EN_PORT,          /* en_port */
@@ -208,7 +208,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [10] DEV_HWXJ2 28V_HWXJ2 */
-    {
+    [DEV_HWXJ2] = {
         DEV_HWXJ2,                  /* id */
         "28V_HWXJ2",                /* name */
         HWXJ2_PWR_EN_PORT,          /* en_port */
@@ -225,7 +225,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [11] DEV_HWXJ3 28V_HWXJ3 */
-    {
+    [DEV_HWXJ3] = {
         DEV_HWXJ3,                  /* id */
         "28V_HWXJ3",                /* name */
         HWXJ3_PWR_EN_PORT,          /* en_port */
@@ -242,7 +242,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [12] DEV_HJJC1 28V_HJJC1 */
-    {
+    [DEV_HJJC1] = {
         DEV_HJJC1,                  /* id */
         "28V_HJJC1",                /* name */
         HJJC1_PWR_EN_PORT,          /* en_port */
@@ -259,7 +259,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [13] DEV_HJJC2 28V_HJJC2 */
-    {
+    [DEV_HJJC2] = {
         DEV_HJJC2,                  /* id */
         "28V_HJJC2",                /* name */
         HJJC2_PWR_EN_PORT,          /* en_port */
@@ -276,7 +276,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [14] DEV_HJJC3 28V_HJJC3 */
-    {
+    [DEV_HJJC3] = {
         DEV_HJJC3,                  /* id */
         "28V_HJJC3",                /* name */
         HJJC3_PWR_EN_PORT,          /* en_port */
@@ -293,7 +293,7 @@ const dev_map_t g_dev_map[DEV_NUM] = {
         CHIP_TYPE_MAC5048,          /* chip_type */
     },
     /* [15] DEV_PD 28V_PD */
-    {
+    [DEV_PD] = {
         DEV_PD,                     /* id */
         "28V_PD",                   /* name */
         PD_PWR_EN_PORT,             /* en_port */
@@ -318,23 +318,28 @@ const dev_map_t g_dev_map[DEV_NUM] = {
                   sub: 0=主通道 1=KF1 2=KF2
 */
 const t_map_t g_t_map[16] = {
-    { DEV_WAOXJ, 0 },   /* AIN0  */
-    { DEV_DYGY,  0 },   /* AIN1  */
-    { DEV_SFXJ1, 0 },   /* AIN2  */
-    { DEV_HJJC3, 0 },   /* AIN3  */
-    { DEV_SFXJ2, 0 },   /* AIN4  */
-    { DEV_DTJ,   0 },   /* AIN5  */
-    { DEV_KF,    2 },   /* AIN6  KF2 温度 */
-    { DEV_HWXJ3, 0 },   /* AIN7  */
-    { DEV_QGSJ,  0 },   /* AIN8  */
-    { DEV_HJJC1, 0 },   /* AIN9  */
-    { DEV_HWXJ1, 0 },   /* AIN10 */
-    { DEV_HWXJ2, 0 },   /* AIN11 */
-    { DEV_HJJC2, 0 },   /* AIN12 */
-    { DEV_PD,    0 },   /* AIN13 */
-    { DEV_GSDJ,  0 },   /* AIN14 */
-    { DEV_KF,    1 },   /* AIN15 KF1 温度 */
+    [0]  = { DEV_WAOXJ, 0 },   /* AIN0  */
+    [1]  = { DEV_DYGY,  0 },   /* AIN1  */
+    [2]  = { DEV_SFXJ1, 0 },   /* AIN2  */
+    [3]  = { DEV_HJJC3, 0 },   /* AIN3  */
+    [4]  = { DEV_SFXJ2, 0 },   /* AIN4  */
+    [5]  = { DEV_DTJ,   0 },   /* AIN5  */
+    [6]  = { DEV_KF,    2 },   /* AIN6  KF2 温度 */
+    [7]  = { DEV_HWXJ3, 0 },   /* AIN7  */
+    [8]  = { DEV_QGSJ,  0 },   /* AIN8  */
+    [9]  = { DEV_HJJC1, 0 },   /* AIN9  */
+    [10] = { DEV_HWXJ1, 0 },   /* AIN10 */
+    [11] = { DEV_HWXJ2, 0 },   /* AIN11 */
+    [12] = { DEV_HJJC2, 0 },   /* AIN12 */
+    [13] = { DEV_PD,    0 },   /* AIN13 */
+    [14] = { DEV_GSDJ,  0 },   /* AIN14 */
+    [15] = { DEV_KF,    1 },   /* AIN15 KF1 温度 */
 };
+
+/* 编译期检查: 表长度与设备 ID 枚举一致, 防止 ID 直索引越界/错位 */
+typedef char g_dev_map_size_check[(sizeof(g_dev_map) / sizeof(g_dev_map[0]) == DEV_NUM &&
+                                   DEV_PD == DEV_NUM - 1) ? 1 : -1];
+typedef char g_t_map_size_check[(sizeof(g_t_map) / sizeof(g_t_map[0]) == 16) ? 1 : -1];
 
 /*
     @brief      : DAC (GDA6641 x4) 通道组引脚表, 索引 = DAC_IDX_xxx
@@ -580,9 +585,10 @@ void bsp_board_init(void)
     GPIO_Init(DAC_CH3_SDO_PORT, &gpio_init);
 
     /* 7. ADC 通道组 (LC1258 x4)
-          CS/SCLK/DIN/START/RST 输出, DRDY/OUT 输入
+          CS/SCLK/DIN/START/RST 输出, DRDY/OUT (DOUT) 输入
           初始电平: CS=1 (空闲), SCLK=0, DIN=0, START=0, RST=1
-          OUT (DOUT) 按输入定义 (待确认 #3: 原理图标注"模拟, 跳过 GPIO") */
+          DRDY 低有效/开漏输出, 上拉防止浮空误判;
+          OUT (DOUT) 芯片推挽输出, 保持 NOPULL (待确认 #3: 原理图标注"模拟, 跳过 GPIO") */
 
     /* ADC_CH0 (U2 电压监测, GPIOH) */
     gpio_init.GPIO_Mode  = GPIO_Mode_OUT;
@@ -597,9 +603,12 @@ void bsp_board_init(void)
                                      ADC_CH0_START_PIN);
     gpio_init.GPIO_Mode  = GPIO_Mode_IN;
     gpio_init.GPIO_Speed = GPIO_Speed_100MHz;
-    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    gpio_init.GPIO_Pin   = ADC_CH0_DRDY_PIN | ADC_CH0_OUT_PIN;
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_UP;
+    gpio_init.GPIO_Pin   = ADC_CH0_DRDY_PIN;
     GPIO_Init(ADC_CH0_DRDY_PORT, &gpio_init);
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+    gpio_init.GPIO_Pin   = ADC_CH0_OUT_PIN;
+    GPIO_Init(ADC_CH0_OUT_PORT, &gpio_init);
 
     /* ADC_CH1 (U5 电流监测, GPIOE, PE13 空置) */
     gpio_init.GPIO_Mode  = GPIO_Mode_OUT;
@@ -614,9 +623,12 @@ void bsp_board_init(void)
                                      ADC_CH1_START_PIN);
     gpio_init.GPIO_Mode  = GPIO_Mode_IN;
     gpio_init.GPIO_Speed = GPIO_Speed_100MHz;
-    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    gpio_init.GPIO_Pin   = ADC_CH1_DRDY_PIN | ADC_CH1_OUT_PIN;
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_UP;
+    gpio_init.GPIO_Pin   = ADC_CH1_DRDY_PIN;
     GPIO_Init(ADC_CH1_DRDY_PORT, &gpio_init);
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+    gpio_init.GPIO_Pin   = ADC_CH1_OUT_PIN;
+    GPIO_Init(ADC_CH1_OUT_PORT, &gpio_init);
 
     /* ADC_CH2 (U8 温度监测, GPIOF) */
     gpio_init.GPIO_Mode  = GPIO_Mode_OUT;
@@ -631,9 +643,12 @@ void bsp_board_init(void)
                                      ADC_CH2_START_PIN);
     gpio_init.GPIO_Mode  = GPIO_Mode_IN;
     gpio_init.GPIO_Speed = GPIO_Speed_100MHz;
-    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    gpio_init.GPIO_Pin   = ADC_CH2_DRDY_PIN | ADC_CH2_OUT_PIN;
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_UP;
+    gpio_init.GPIO_Pin   = ADC_CH2_DRDY_PIN;
     GPIO_Init(ADC_CH2_DRDY_PORT, &gpio_init);
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+    gpio_init.GPIO_Pin   = ADC_CH2_OUT_PIN;
+    GPIO_Init(ADC_CH2_OUT_PORT, &gpio_init);
 
     /* ADC_CH3 (U11 电源/辅助监测, GPIOF, PF13 空置) */
     gpio_init.GPIO_Mode  = GPIO_Mode_OUT;
@@ -648,9 +663,12 @@ void bsp_board_init(void)
                                      ADC_CH3_START_PIN);
     gpio_init.GPIO_Mode  = GPIO_Mode_IN;
     gpio_init.GPIO_Speed = GPIO_Speed_100MHz;
-    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-    gpio_init.GPIO_Pin   = ADC_CH3_DRDY_PIN | ADC_CH3_OUT_PIN;
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_UP;
+    gpio_init.GPIO_Pin   = ADC_CH3_DRDY_PIN;
     GPIO_Init(ADC_CH3_DRDY_PORT, &gpio_init);
+    gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
+    gpio_init.GPIO_Pin   = ADC_CH3_OUT_PIN;
+    GPIO_Init(ADC_CH3_OUT_PORT, &gpio_init);
 
     /* 8. 外设复用 AF 引脚 (SPI1: PA4~PA7, USART1: PA9/PA10)
           由 bsp_spi / bsp_usart 外设模块初始化 (Task 4/5), 此处不配置 */
