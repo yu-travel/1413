@@ -1,0 +1,23 @@
+1.RESET
+RESET = 低电平：自恢复模式
+当放大器输出V_OUT>V_LIMIT时 ALERT 拉低报警；一旦电流回落V_OUT<V_LIMIT，ALERT 自动恢复高电平，无需软件干预，适合硬件中断实时监测场景。
+RESET = 高电平：锁存模式
+过流触发 ALERT 拉低后，即使电流恢复正常，ALERT 会持续保持低电平锁定报警，不会自动复位。
+锁存报警后，必须给 RESET 输入至少 100ns 低脉冲才能清除锁存：
+若拉低 RESET 时电流已恢复V_OUT<V_LIMIT：ALERT 恢复高电平；
+若拉低 RESET 时仍处于过流V_OUT>V_LIMIT：ALERT 保持报警低电平；
+清除完成后可将 RESET 重新拉高，回到锁存模式等待下一次过流。
+
+典型硬件连接
+直接接 MCU GPIO，软件输出高低电平切换模式 / 清除锁存
+
+2.ALERT
+过流故障硬件报警输出，给 MCU 提供过流中断信号:正常无过流时为高阻高电平，过流时内部导通拉低。
+
+3.Monitor
+高精度电流模拟采样输出，用于实时电流量化监测
+V_Monitor=100*(V_IN-V_IN)
+
+V_Limit=I_Limit*R_Limit
+I_Limit=80uA
+R_Limit=45k

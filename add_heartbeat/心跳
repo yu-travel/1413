@@ -1,0 +1,210 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <signal.h>
+
+// 腾锐D2000 GPIO1控制器基地址
+#define GPIO1_BASE       0x28005000
+#define GPIO_DIR_OFFSET  0x0c  // 方向控制寄存器偏移
+#define GPIO_OUT_OFFSET  0x10  // 输出电平寄存器偏移
+#define GPIO1_B4_BIT     (1 << 4)  // GPIO1_B4 对应bit4
+
+// 全局变量：用于退出时释放资源
+void *gpio1_virt_base = NULL;
+int mem_fd = -1;
+
+// 信号处理：Ctrl+C退出时恢复资源
+void sigint_handler(int sig) {
+    printf("\n捕获退出信号，释放资源...\n");
+
+    // 释放内存映射
+    if (gpio1_virt_base != NULL) {
+        munmap(gpio1_virt_base, 4096);
+        gpio1_virt_base = NULL;
+    }
+    // 关闭文件
+    if (mem_fd >= 0) {
+        close(mem_fd);
+        mem_fd = -1;
+    }
+
+    printf("程序已退出\n");
+    exit(0);
+}
+
+// 初始化并设置GPIO1_B4为【输出+持续低电平】
+int gpio1_b4_set_low(void) {
+    // 1. 打开物理内存（root权限）
+    mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+    if (mem_fd < 0) {
+        perror("打开/dev/mem失败（需sudo运行）");
+        return -1;
+    }
+
+    // 2. 映射物理地址到虚拟地址
+    gpio1_virt_base = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, GPIO1_BASE);
+    if (gpio1_virt_base == MAP_FAILED) {
+        perror("内存映射失败");
+        close(mem_fd);
+        mem_fd = -1;
+        return -1;
+    }
+
+    // 3. 配置为输出模式（仅修改bit4，不影响其他引脚）
+    volatile unsigned int *gpio_dir = (volatile unsigned int *)(gpio1_virt_base + GPIO_DIR_OFFSET);
+    *gpio_dir |= GPIO1_B4_BIT;  // bit4置1 → 输出模式
+    printf("GPIO1_B4 已设为输出模式\n");
+
+    // 4. 设置为低电平（核心：清bit4为0）
+    volatile unsigned int *gpio_out = (volatile unsigned int *)(gpio1_virt_base + GPIO_OUT_OFFSET);
+    *gpio_out &= ~GPIO1_B4_BIT;  // 清bit4 → 低电平
+    printf("GPIO1_B4 已设为持续低电平\n");
+
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    // 注册Ctrl+C信号处理
+    signal(SIGINT, sigint_handler);
+
+    // 初始化并设置低电平
+    if (gpio1_b4_set_low() != 0) {
+        printf("GPIO1_B4 设置低电平失败\n");
+        return -1;
+    }
+
+    // 保持程序运行（低电平持续生效）
+    printf("GPIO1_B4 已稳定输出低电平（按Ctrl+C退出）\n");
+    while (1) {
+        sleep(1);  // 空循环，保持程序运行
+    }
+
+    return 0;
+}
+~
+~
+~
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <signal.h>
+
+// 腾锐D2000 GPIO1控制器基地址
+#define GPIO1_BASE       0x28005000
+#define GPIO_DIR_OFFSET  0x0c  // 方向控制寄存器偏移
+#define GPIO_OUT_OFFSET  0x10  // 输出电平寄存器偏移
+#define GPIO1_B4_BIT     (1 << 4)  // GPIO1_B4 对应bit4
+
+// 全局变量：用于退出时释放资源
+void *gpio1_virt_base = NULL;
+int mem_fd = -1;
+
+// 信号处理：Ctrl+C退出时恢复资源
+void sigint_handler(int sig) {
+    printf("\n捕获退出信号，释放资源...\n");
+
+    // 释放内存映射
+    if (gpio1_virt_base != NULL) {
+        munmap(gpio1_virt_base, 4096);
+        gpio1_virt_base = NULL;
+    }
+    // 关闭文件
+    if (mem_fd >= 0) {
+        close(mem_fd);
+        mem_fd = -1;
+    }
+
+    printf("程序已退出\n");
+    exit(0);
+}
+
+// 初始化并设置GPIO1_B4为【输出+持续低电平】
+int gpio1_b4_set_low(void) {
+    // 1. 打开物理内存（root权限）
+    mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
+    if (mem_fd < 0) {
+        perror("打开/dev/mem失败（需sudo运行）");
+        return -1;
+    }
+
+    // 2. 映射物理地址到虚拟地址
+    gpio1_virt_base = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, GPIO1_BASE);
+    if (gpio1_virt_base == MAP_FAILED) {
+        perror("内存映射失败");
+        close(mem_fd);
+        mem_fd = -1;
+        return -1;
+    }
+
+    // 3. 配置为输出模式（仅修改bit4，不影响其他引脚）
+    volatile unsigned int *gpio_dir = (volatile unsigned int *)(gpio1_virt_base + GPIO_DIR_OFFSET);
+    *gpio_dir |= GPIO1_B4_BIT;  // bit4置1 → 输出模式
+    printf("GPIO1_B4 已设为输出模式\n");
+
+    // 4. 设置为低电平（核心：清bit4为0）
+    volatile unsigned int *gpio_out = (volatile unsigned int *)(gpio1_virt_base + GPIO_OUT_OFFSET);
+    *gpio_out &= ~GPIO1_B4_BIT;  // 清bit4 → 低电平
+    printf("GPIO1_B4 已设为持续低电平\n");
+
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    // 注册Ctrl+C信号处理
+    signal(SIGINT, sigint_handler);
+
+    // 初始化并设置低电平
+    if (gpio1_b4_set_low() != 0) {
+        printf("GPIO1_B4 设置低电平失败\n");
+        return -1;
+    }
+
+    // 保持程序运行（低电平持续生效）
+    printf("GPIO1_B4 已稳定输出低电平（按Ctrl+C退出）\n");
+    while (1) {
+        sleep(1);  // 空循环，保持程序运行
+    }
+
+    return 0;
+}
+帮我优化上述代码，手册如下：
+飞腾腾锐D2000提供两个GPIO（GeneralPurposeProgrammingI/O）模块，每个GPIO模块有16b接口，每8b为一组。GPIO可以控制外部IOpad的输入输出方向，当IOpad为输出时，内部寄存器中的数据输出到片外；当IOpad为输入时，pad上的数据被锁存到内部寄存器。其中A组的8b接口支持复用为外部中断信号。作为数据传输信号，首先，需要将对应pin脚的PAD复用类型设置为GPIO。写数据：配置方向寄存器（GPIO_SWPORTA_DDR、GPIO_SWPORTB_DDR）为输出（写1）；数据写入寄存器（GPIO_SWPORTA_DR、GPIO_SWPORTB_DR）。读数据：配置方向寄存器（GPIO_SWPORTA_DDR、GPIO_SWPORTB_DDR）为输入（写0）；从寄存器（GPIO_EXT_PORTA、GPIO_EXT_PORTB）中读出数据。复用为中断信号：配置方向寄存器（GPIO_SWPORTA_DDR）为输入（写0）；写中断屏蔽寄存器（GPIO_INTMASK）为0；配置中断类型寄存器（GPIO_INTTYPE_LEVEL）；配置中断极性寄存器（GPIO_INT_POLARITY）；使能中断，寄存器（GPIO_INTEN）写1。
+寄存器说明，基地址：GPIO0控制寄存器：0x000_28004000。GPIO1控制寄存器：0x000_28005000。
+GPIO SWPORTA DR      :  0x00 :  	A组端口输出寄存器     
+GPIOSWPORTA DDR      : 0x04  :		A组端口方向控制寄存器
+GPIO EXT PORTA       : 0x08  :		A组端口输入寄存器
+GPICSWPORTB DR       : 0x0c  :		B组端口输出寄存器
+GPIO SWPORTB DDR     : 0x10  :		B组端口方向控制寄存器
+GPIO EXT PORTB       : 0x14  :		B组端口输入寄存器
+GPIO INTEN           : 0x18  :		A组端口中断使能寄存器
+GPIO INTMASK         : 0x1c  :		A组端口中断屏蔽寄存器
+GPIO INTTYPE LEVEL   : 0x20  :		A组端口中断等级寄存器
+GPIO INTPOLARITY     : 0x24  :		A组端口中断极性寄存器
+GPIO INTSTATUS       : 0x28  :		A组端口中断状态寄存器
+GPIO RAW INTSTATUS   : 0x2c  :		A组端口原始中断状态寄存器
+GPIO LS SYNC         : 0x30  :		配置中断同步寄存器
+GPIO DEBOUNCE        : 0x34  :		防反跳配置寄存器
+GPIO PORTA EOI       : 0x38  :		A组端口中断清除寄存器
+
+GPIO_SWPORTB_DR:
+Reserved，31:8位，描述：保留。
+PortB Data Register,7:0位，读写：WR，复位值0x0，描述:如果B组端口的相应数据方向位设置为输出模式，则写入该寄存器的值在B组端口的I/O信号线上输出。读取的值等于写入该寄存器的最后一个值。
+
+GPIO_SWPORTB_DDR：
+Reserved，31:8位，描述：保留。
+PortB direction Register,7:0位，读写：WR，复位值0x0，描述:写入该寄存器的值独立控制B组端口中相应数据位的方向。默认方向配置为输入：0–Input，1–Output。
+
+GPIO_EXT_PORTB
+Reserved，31:8位，描述：保留。
+PortB direction Register,7:0位，读写：RO，复位值0x0，描述:当B组端口被配置为输入，读取该位置将读取信号的值。当B组端口数据方向设置为输出，读取该位置将读取B组端口的数据寄存器。
+
+
+
+飞腾腾锐D2000中的某些IO之间存在共用同一物理引脚情况，即引脚复用。用户可以通过配置相关寄存器来设置复用引脚的当前功能。按配置的功能不同，可以将寄存器分为引脚功能配置寄存器、通用IO引脚延迟配置寄存器和时钟引脚延时配置寄存器。
+引脚复用控制基地址：0x28180000
+偏移：0x020c，[23:22]:控制sd_dat1pad的上下拉，复位值：2'b10。[21:20]:控制sd_dat1_pad的复用功能,复位值：2'b00。
+复用控制位：sd_dat1_pad，func0：sd_dat1，func1：gpio1_portb_4

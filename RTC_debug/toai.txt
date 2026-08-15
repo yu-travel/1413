@@ -1,0 +1,13 @@
+引脚复用控制基地址：0x28180000
+
+偏移：0x0200;
+位域:
+[31:30]：控制all_pll_lock_pad的上下拉，复位值:2b00
+[29:28]：控制all_pll_lock_pad的复用功能，复位值:2b00
+[27:26]：控制cru_clk_obv_pad的上下拉，复位值:2b00
+[25:24]：控制cru_clk_obv_pad的复用功能，复位值:2b00
+
+复用功能表：
+ all_pll_lock_pad:Func0:all_pll_lock;Func2:i2c_1_scl.
+ cru_clk_obv_pad:Func0:cru_clk_obv;Func1:gpio0_porta_0;Func2:i2c_1_sda.
+ 

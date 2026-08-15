@@ -1,0 +1,10 @@
+[Unit]
+Description=/etc/rc.local Compatibility
+ConditionPathExists=/etc/rc.local
+[Service]
+ExecStart=/etc/rc.local start
+Restart = always
+Type=simple
+ 
+[Install]
+WantedBy=multi-user.target

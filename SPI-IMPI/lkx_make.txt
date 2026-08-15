@@ -1,0 +1,19 @@
+# 1. 编译所有源文件为目标文件（位置无关代码）
+gcc -fPIC -c ringbuffer.c spi_dev.c spi_protocol.c
+
+# 2. 将目标文件链接为共享库（命名为 libspiutils.so）
+gcc -shared -o libspiutils.so ringbuffer.o spi_dev.o spi_protocol.o
+
+# 3. 编译 demo 程序并链接共享库
+gcc demo.c -o demo_app -L. -lspiutils -I.
+
+# 4. 修改权限
+sudo chmod 777 /dev/spidev0.0 
+
+# 5. 设置运行时库路径并执行 demo 程序
+LD_LIBRARY_PATH=. ./demo_app
+
+
+./spidev_test -D /dev/spidev0.0 -s 5000 -p "\xAA\x00\x05\x11\x11" -v
+
+./spidev_test -D /dev/spidev0.0 -s 5000 -p "\xAA\x00\x05\x11\x11" -v -O -H

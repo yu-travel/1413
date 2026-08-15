@@ -1,0 +1,19 @@
+MAC5048
+EN：
+1.使能控制：高电平有效。
+2.故障复位：芯片锁存故障（过温、短路、OVP、MOS 损坏）后，只有拉低 ON 再重新拉高才能清除锁存，重启软启动流程。
+CLREF：
+1.可编程过流保护 (OCP) 基准电压输入，公式如下：
+I_LIMIT = V_CLREF_NORM/(g_CS*R_CS)
+其中g_CS=25μA/A,R_CS = 3.6k
+VOUT：
+芯片主功率输出通道，ON 使能后，VIN 经内部 MOS 从 VOUT 输出给后端负载。
+IMON：
+片内电流监控输出，采样增益固定 25μA/A
+采样电流：I_IMON=I_OUT×25μA/A
+监控电压：V_IMON=I_IMON×R_IMON
+其中R_IMON=3.6k
+VTEMP：
+片内集成温度传感器，输出电压与芯片结温 TJ 线性对应，公式：
+V_TEMP=(T_J×12.1-200)mV
+刻度：典型 10mV/℃；TJ=100℃时，VTEMP≈1V,TJ=0℃时，VTEMP≈0V；TJ＜0℃时输出钳位 0V；测温范围 0~150℃。

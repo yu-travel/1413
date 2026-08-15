@@ -1,0 +1,2 @@
+最终测试通过的可执行文件为：
+HEARTBEAT_FT_TO_MCU

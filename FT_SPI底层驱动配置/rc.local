@@ -1,0 +1,13 @@
+#!/bin/bash
+sudo insmod /home/ucas/xdma/XDMA/linux-kernel/xdma/xdma.ko
+sudo chmod 777 /dev/xdma*
+
+#sudo chmod 777 /dev/spidev0.0
+
+sudo /usr/local/lib/spi/devmem2 0x28180208 w 0x28800048
+sudo /usr/local/lib/spi/devmem2 0x28180200 w 0x884445
+
+sudo chmod 777 /dev/spidev0.0
+
+sudo hwclock -r
+sudo hwclock -s

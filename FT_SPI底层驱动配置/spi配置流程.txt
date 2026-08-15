@@ -1,0 +1,9 @@
+﻿1、gcc -o devmem2 devmem2.c
+
+2、将生成的devmem2后放到/home/swai/spi/路径下（路径与rc.local文件内的路径保持一致）
+	sudo cp ./devmem2 /etc
+3、rc-local.service需要放到   /etc/systemd/system/路径下
+	执行开机自动运行：
+	sudo systemctl enable rc-local.service
+	sudo systemctl start rc-local.service
+4、把rc.local放到/etc下面 
