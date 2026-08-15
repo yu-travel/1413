@@ -1,0 +1,26 @@
+# Keil MDK 构建产物与用户配置 (见 AGENTS.md)
+*.uvoptx
+*.uvguix.*
+*.dep
+*.lst
+*.htm
+*.axf
+*.hex
+*.bin
+*.o
+*.crf
+*.d
+*.lnp
+*.sct
+*.map
+*.build_log.htm
+*.scvd
+*.dbgconf
+JLinkLog.txt
+JLinkSettings.ini
+Objects/
+Listings/
+DebugConfig/
+
+# Office 锁文件
+~$*
