@@ -320,6 +320,8 @@
 #define ADC_CH1_DIN_PORT    GPIOE
 #define ADC_CH1_DIN_PIN     GPIO_Pin_12
 
+/* PE13 空置 (待确认 #8) */
+
 /* OUT 为 SPI DOUT 数据线, 按输入定义 (待确认 #3: 原理图标注"模拟, 跳过 GPIO") */
 #define ADC_CH1_OUT_PORT    GPIOE
 #define ADC_CH1_OUT_PIN     GPIO_Pin_14
@@ -367,6 +369,8 @@
 #define ADC_CH3_START_PORT  GPIOF
 #define ADC_CH3_START_PIN   GPIO_Pin_12
 
+/* PF13 空置 (待确认 #8) */
+
 #define ADC_CH3_DIN_PORT    GPIOF
 #define ADC_CH3_DIN_PIN     GPIO_Pin_14
 
@@ -404,6 +408,12 @@ typedef struct {
     gpio_pin_t cs;      /* 片选              OUT_PP */
 } lc1258_pin_t;
 
+/* Dev 层驱动句柄类型: Task 6/7 的 Dev 头文件 (gda6641.h/lc1258.h) 直接复用
+   以下 typedef 消费引脚表, 不再重复定义引脚结构,
+   board_map.h 是 Dev 与 Bsp 的唯一耦合点 */
+typedef gda6641_pin_t gda6641_handle_t;
+typedef lc1258_pin_t  lc1258_handle_t;
+
 /* 由 bsp_board.c 实例化 (Task 3) */
 extern const gda6641_pin_t g_dac_pin_map[4];    /* 索引 = DAC_IDX_xxx */
 extern const lc1258_pin_t g_adc_pin_map[4];     /* 索引 = ADC_IDX_xxx */
@@ -411,11 +421,17 @@ extern const lc1258_pin_t g_adc_pin_map[4];     /* 索引 = ADC_IDX_xxx */
 /*============================================================
     九、电源设备映射 (15 路)
 ============================================================*/
-/* GDA6641 实例索引 (对应位号) */
-#define DAC_IDX_U14     0
-#define DAC_IDX_U15     1
-#define DAC_IDX_U16     2
-#define DAC_IDX_U17     3
+/* GDA6641 实例索引 (功能名 = 位号名) */
+#define DAC_IDX_CH0     0   /* U14 */
+#define DAC_IDX_CH1     1   /* U15 */
+#define DAC_IDX_CH2     2   /* U16 */
+#define DAC_IDX_CH3     3   /* U17 */
+
+/* 位号别名 (兼容保留) */
+#define DAC_IDX_U14     DAC_IDX_CH0
+#define DAC_IDX_U15     DAC_IDX_CH1
+#define DAC_IDX_U16     DAC_IDX_CH2
+#define DAC_IDX_U17     DAC_IDX_CH3
 
 /* GDA6641 输出通道 (VOUTA/B/C/D) */
 #define DAC_CH_A        0
@@ -423,11 +439,17 @@ extern const lc1258_pin_t g_adc_pin_map[4];     /* 索引 = ADC_IDX_xxx */
 #define DAC_CH_C        2
 #define DAC_CH_D        3
 
-/* LC1258 实例索引 (对应位号) */
-#define ADC_IDX_V       0   /* U2  电压监测 */
-#define ADC_IDX_I       1   /* U5  电流监测 */
-#define ADC_IDX_T       2   /* U8  温度监测 */
-#define ADC_IDX_AUX     3   /* U11 电源/辅助监测 */
+/* LC1258 实例索引 (功能名 = 位号名) */
+#define ADC_IDX_CH0     0   /* U2  电压监测 */
+#define ADC_IDX_CH1     1   /* U5  电流监测 */
+#define ADC_IDX_CH2     2   /* U8  温度监测 */
+#define ADC_IDX_CH3     3   /* U11 电源/辅助监测 */
+
+/* 功能别名 (兼容保留) */
+#define ADC_IDX_V       ADC_IDX_CH0
+#define ADC_IDX_I       ADC_IDX_CH1
+#define ADC_IDX_T       ADC_IDX_CH2
+#define ADC_IDX_AUX     ADC_IDX_CH3
 
 /* dev_map_t.chip_type 取值 */
 #define CHIP_TYPE_MAC5048   0
@@ -442,35 +464,41 @@ typedef enum {
 } dev_id_e;
 
 /* 单路电源设备完整映射, g_dev_map[] 由 bsp_board.c 实例化:
-   ID  名称       EN   故障信号               芯片          CLREF DAC
-   0x01 28V_KF    PD0  KF1=PB4 + KF2=PA15     MAC5048 x2    U17.VOUTB
-   0x02 28V_DTJ   PD14 PB15                   MAC5048       U14.VOUTD
-   0x03 12V_DYGY  PD9  GOK=PH6 / GOC=PH7      HQEF5016      U15.VOUTA
-   0x04 28V_QGSJ  PD1  PB9                    MAC5048       U17.VOUTA
-   0x05 28V_SFXJ1 PD4  PB12                   MAC5048       U14.VOUTB
-   0x06 28V_SFXJ2 PD7  PB10                   MAC5048       U14.VOUTC
-   0x07 12V_GSDJ  PD12 GOK=PA2 / GOC=PA3      HQEF5016      U15.VOUTC
-   0x08 28V_WAOXJ PD8  PB13                   MAC5048       U16.VOUTD
-   0x09 28V_HWXJ1 PD13 PB8                    MAC5048       U15.VOUTB
-   0x0A 28V_HWXJ2 PD2  PB7                    MAC5048       U17.VOUTC
-   0x0B 28V_HWXJ3 PD6  PB0                    MAC5048       U16.VOUTB
-   0x0C 28V_HJJC1 PD3  PB5                    MAC5048       U16.VOUTC
-   0x0D 28V_HJJC2 PD10 PB6                    MAC5048       U15.VOUTD
-   0x0E 28V_HJJC3 PD11 PB14                   MAC5048       U14.VOUTA
-   0x0F 28V_PD    PD5  PB3                    MAC5048       U16.VOUTA */
+   ID  名称       EN   故障信号               芯片          CLREF DAC    FAULT_AIN
+   0x01 28V_KF    PD0  KF1=PB4 + KF2=PA15     MAC5048 x2    U17.VOUTB    0xFF
+   0x02 28V_DTJ   PD14 PB15                   MAC5048       U14.VOUTD    0xFF
+   0x03 12V_DYGY  PD9  GOK=PH6 / GOC=PH7      HQEF5016      U15.VOUTA    10
+   0x04 28V_QGSJ  PD1  PB9                    MAC5048       U17.VOUTA    0xFF
+   0x05 28V_SFXJ1 PD4  PB12                   MAC5048       U14.VOUTB    0xFF
+   0x06 28V_SFXJ2 PD7  PB10                   MAC5048       U14.VOUTC    0xFF
+   0x07 12V_GSDJ  PD12 GOK=PA2 / GOC=PA3      HQEF5016      U15.VOUTC    11
+   0x08 28V_WAOXJ PD8  PB13                   MAC5048       U16.VOUTD    0xFF
+   0x09 28V_HWXJ1 PD13 PB8                    MAC5048       U15.VOUTB    0xFF
+   0x0A 28V_HWXJ2 PD2  PB7                    MAC5048       U17.VOUTC    0xFF
+   0x0B 28V_HWXJ3 PD6  PB0                    MAC5048       U16.VOUTB    0xFF
+   0x0C 28V_HJJC1 PD3  PB5                    MAC5048       U16.VOUTC    0xFF
+   0x0D 28V_HJJC2 PD10 PB6                    MAC5048       U15.VOUTD    0xFF
+   0x0E 28V_HJJC3 PD11 PB14                   MAC5048       U14.VOUTA    0xFF
+   0x0F 28V_PD    PD5  PB3                    MAC5048       U16.VOUTA    0xFF
+
+   注: HQEF5016 (DYGY/GSDJ) 无数字 FAULT 引脚, FAULT 为模拟量,
+   由 ADC_CH3 (U11) AIN10(DYGY)/AIN11(GSDJ) 采集;
+   其 fault_port[] 填数字状态引脚 GOK/GOC (fault_cnt=2,
+   fault_port[0]=GOK, fault_port[1]=GOC) */
 typedef struct {
     dev_id_e      id;
     u8            name[12];
     GPIO_TypeDef *en_port;
     u16           en_pin;
-    u8            fault_cnt;                      /* 1 或 2 */
-    GPIO_TypeDef *fault_port[2];
+    u8            fault_cnt;                      /* 1 或 2; HQEF5016 时=2 (GOK/GOC) */
+    GPIO_TypeDef *fault_port[2];                  /* HQEF5016: [0]=GOK, [1]=GOC */
     u16           fault_pin[2];
     u8            dac_idx;                        /* GDA6641 实例 (DAC_IDX_xxx, 0~3) */
     u8            dac_ch;                         /* GDA6641 通道 (DAC_CH_x, 0~3) */
     u8            adc_ain_v;                      /* ADC_CH0 (U2) 电压 AIN */
     u8            adc_ain_i;                      /* ADC_CH1 (U5) 电流 AIN */
     u8            adc_ain_t;                      /* ADC_CH2 (U8) 温度 AIN (KF 用子表, 此字段填 0xFF) */
+    u8            adc_ain_fault;                  /* ADC_CH3 (U11) FAULT 模拟量 AIN (仅 HQEF5016, 0xFF=无) */
     u8            chip_type;                      /* CHIP_TYPE_xxx */
 } dev_map_t;
 
@@ -482,8 +510,10 @@ typedef struct {
     u8       sub;        /* 0=主通道 1=KF1 2=KF2 */
 } t_map_t;
 
-/* 由 bsp_board.c 实例化 (Task 3) */
+/* 由 bsp_board.c 实例化 (Task 3)
+   索引约定: 索引 = 设备 ID, g_dev_map[DEV_KF]..g_dev_map[DEV_PD] 按 ID 直索引,
+   无需 -1 换算; g_dev_map[0] 为 DEV_INVALID 占位槽 (全 0 填充), 与 dev_id_e 一一对应 */
 extern const t_map_t  g_t_map[16];
-extern const dev_map_t g_dev_map[DEV_NUM - 1];
+extern const dev_map_t g_dev_map[DEV_NUM];
 
 #endif /* __BOARD_MAP_H_ */
