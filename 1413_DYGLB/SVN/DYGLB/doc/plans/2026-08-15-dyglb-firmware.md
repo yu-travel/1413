@@ -167,19 +167,25 @@ typedef struct {
     dev_id_e    id;
     u8          name[12];
     GPIO_TypeDef *en_port;   u16 en_pin;
-    u8          fault_cnt;                      /* 1或2 */
+    u8          fault_cnt;                      /* 1或2；HQEF5016 填2: [0]=GOK [1]=GOC */
     GPIO_TypeDef *fault_port[2]; u16 fault_pin[2];
     u8          dac_idx;     u8 dac_ch;         /* GDA6641 实例与通道 */
     u8          adc_ain_v;                      /* ADC_CH0 电压 AIN */
     u8          adc_ain_i;                      /* ADC_CH1 电流 AIN */
-    u8          adc_ain_t;                      /* ADC_CH2 温度 AIN（KF 用 t 子表） */
+    u8          adc_ain_t;                      /* ADC_CH2 温度 AIN（KF 用 t 子表, 填0xFF） */
+    u8          adc_ain_fault;                  /* CH3 FAULT 模拟量 AIN（仅HQEF5016: DYGY=10 GSDJ=11）, 0xFF=无 */
     u8          chip_type;                      /* 0=MAC5048 1=HQEF5016 */
 } dev_map_t;
 
 /* 温度通道子表：AIN → (设备, 子通道)，KF 拆分 KF1/KF2 */
 typedef struct { dev_id_e dev; u8 sub; } t_map_t;  /* sub: 0=主 1=KF1 2=KF2 */
 extern const t_map_t g_t_map[16];
-extern const dev_map_t g_dev_map[DEV_NUM - 1];
+/* 索引 = 设备ID 直索引，[0] 为 DEV_INVALID 占位槽 */
+extern const dev_map_t g_dev_map[DEV_NUM];
+
+/* Dev 层 handle 类型 = board_map.h 引脚表结构体 typedef（Dev 与 Bsp 唯一耦合点，Task 6/7 复用不重复定义） */
+typedef gda6641_pin_t gda6641_handle_t;
+typedef lc1258_pin_t  lc1258_handle_t;
 ```
 
 - [ ] **Step 3:** 定义 4 片 DAC、4 片 ADC 的 handle 引脚常量表（`DAC_CH0_SCLK_PORT` 等宏组成的结构体常量）
@@ -224,17 +230,10 @@ void bsp_spi_transfer(u8 *tx, u8 *rx, u16 len);
 
 **Files:** 新建 `Dev/gda6641.c/h`
 
-- [ ] **Step 1:** 接口（handle 方式，与板无关）：
+- [ ] **Step 1:** 接口（handle 类型直接复用 `board_map.h` 的 `gda6641_handle_t` typedef，不再重复定义）：
 
 ```c
-typedef struct {
-    GPIO_TypeDef *sclk_port; u16 sclk_pin;
-    GPIO_TypeDef *sync_port; u16 sync_pin;
-    GPIO_TypeDef *din_port;  u16 din_pin;
-    GPIO_TypeDef *ldac_port; u16 ldac_pin;
-    GPIO_TypeDef *por_port;  u16 por_pin;
-    GPIO_TypeDef *clr_port;  u16 clr_pin;
-} gda6641_handle_t;
+/* handle = board_map.h 的 gda6641_handle_t (gda6641_pin_t 的 typedef)，不重复定义 */
 
 void gda6641_init(gda6641_handle_t *h);                 /* POR拉高、CLR/LDAC拉高 */
 void gda6641_write(gda6641_handle_t *h, u8 ch, u16 d);  /* 命令0010 写+同步刷新 */
@@ -254,15 +253,7 @@ void gda6641_reset(gda6641_handle_t *h);                /* POR 低脉冲 软复�
 - [ ] **Step 1:** 接口：
 
 ```c
-typedef struct {
-    GPIO_TypeDef *cs_port;    u16 cs_pin;
-    GPIO_TypeDef *sclk_port;  u16 sclk_pin;
-    GPIO_TypeDef *din_port;   u16 din_pin;
-    GPIO_TypeDef *dout_port;  u16 dout_pin;
-    GPIO_TypeDef *rst_port;   u16 rst_pin;
-    GPIO_TypeDef *start_port; u16 start_pin;
-    GPIO_TypeDef *drdy_port;  u16 drdy_pin;
-} lc1258_handle_t;
+/* handle = board_map.h 的 lc1258_handle_t (lc1258_pin_t 的 typedef)，不重复定义 */
 
 u8  lc1258_init(lc1258_handle_t *h);              /* RST复位+读ID==0x8B校验 */
 u8  lc1258_write_reg(lc1258_handle_t *h, u8 addr, u8 val);
