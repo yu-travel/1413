@@ -31,70 +31,15 @@ extern "C"
 #include "stm32f4xx.h"
 #include "SEGGER_RTT.h"
 #include "usart.h"
-#include "gpio.h"
-#include "myiic.h"
 #include "delay.h"
 #include "sys.h"
-
-/* Private includes ----------------------------------------------------------*/
-#define AT24C02_DEV_ID              0xAE        // EEPROM…Ë±∏µÿ÷∑
-
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-
-struct power_ctrl_t  {
-    int senior_id ;
-	int onoff_ctrl;
-};
-
-
-typedef enum {
-	MCU1_28V_TSGY=0x0,
-	MCU1_28V_KF=0x1,
-	MCU2_12V_GSDJ1=0x2,
-	MCU2_12V_GSDJ2,
-	MCU2_12V_DYGY=0x4,
-	MCU3_28V_SFXJ=0x5,
-	MCU3_28V_SFPSD,
-	MCU3_28V_BQXJ,
-	MCU3_28V_QGSJ=0x8,
-	MCU4_28V_HJJC1=0x9,
-	MCU4_28V_HJJC2,
-	MCU4_28V_BF,
-	MCU4_28V_WAOXJ=0xc,	
-}DEVICE_ID;
-
-#define TSGY_DEV_NUM	(0)
-#define KF_DEV_NUM	(1)
-
-/* Exported types ------------------------------------------------------------*/
-/* USER CODE BEGIN ET */
-
-/* USER CODE END ET */
-
-/* Exported constants --------------------------------------------------------*/
-/* USER CODE BEGIN EC */
-
-/* USER CODE END EC */
-
-/* Exported macro ------------------------------------------------------------*/
-/* USER CODE BEGIN EM */
-
-/* USER CODE END EM */
-
-/* Exported functions prototypes ---------------------------------------------*/
-
-
-/* USER CODE BEGIN EFP */
-
-/* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
 
 #define DEVNUM  2
 
+#define TSGY_DEV_NUM	(0)
+#define KF_DEV_NUM	(1)
 
 #ifdef __cplusplus
 }

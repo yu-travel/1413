@@ -1,135 +1,45 @@
 #include "main.h"
 #include "delay.h"
-#include "usart.h"
-#include "softtimer.h"
-#include "iwdg.h"
-#include "timer.h"
-#include "AD7606_Driver.h"
-#include "AD5542_Driver.h"
-#include "control_Dev.h"
-#include "transf_jkkzb.h"
 #include "types_def.h"
-#include <math.h>
 
-#include "mac5048.h"
+uint32_t dev_Open_counter_time[DEVNUM] = {0};//timer.c ï¿½ï¿½Ê±Ê¹ï¿½Ãµï¿½ï¿½è±¸ï¿½ï¿½ï¿½ï¿½ï¿½Æ¼ï¿½ï¿½ï¿½,ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø½ï¿½ï¿½ï¿½Ç¨ï¿½ï¿½
 
-uint32_t k_u32[13]={0};
-int32_t b_u32[13]={0};
-float k[13]={0};
-float b[13]={0};
-extern DEFAULT_CONFIG_POWER before_default_config_power;//ÉÏµçÄ¬ÈÏÅäÖÃÏî
-/**
- * ´ÓFlashÖ¸¶¨µØÖ·¶ÁÈ¡¶à¸ö4×Ö½Úµ½»º³åÇø
- * @param address ÆğÊ¼µØÖ·
- * @param buffer ½ÓÊÕÊı¾İµÄ»º³åÇø
- * @param length Òª¶ÁÈ¡µÄ×Ö½ÚÊı
- */
-void Flash_ReadBytes(uint32_t address, uint32_t *buffer, uint32_t length)
+/*
+    @brief      : LED ï¿½ï¿½Ê¼ï¿½ï¿½,PD2
+    @param[in]  : none
+    @param[out] : none
+    @retval     : none
+*/
+void led_init(void)
 {
-    if (buffer == NULL || length == 0)
-    {
-        return; // ²ÎÊıÎŞĞ§
-    }
-    
-    // ¼ÆËãÓĞĞ§¶ÁÈ¡·¶Î§£¨²»³¬¹ıFlash±ß½ç£©
-    uint32_t maxAddress = 0x080FFFFF; // STM32F407RGµÄFlash½áÊøµØÖ·
-    if (address > maxAddress)
-    {
-        return;
-    }
-    if (address + length > maxAddress + 1)
-    {
-        length = maxAddress - address + 1; // ½Ø¶Ï³¬³ö²¿·Ö
-    }
-    
-    // 4×Ö½Ú¶ÁÈ¡
-    volatile uint32_t *flashPtr = (volatile uint32_t *)address;
-    for (uint32_t i = 0; i < (length/4); i++)
-    {
-        buffer[i] = flashPtr[i];
-    }
+    GPIO_InitTypeDef GPIO_InitStructure;
+
+    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
+
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
+    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+    GPIO_Init(GPIOD, &GPIO_InitStructure);
 }
 
 int main(void)
 {
-
-	uint32_t ret=0,errNum=0;
-	uint16_t temp; 
-    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);//ÉèÖÃÏµÍ³ÖĞ¶ÏÓÅÏÈ¼¶·Ö×é2
-    delay_init(168);    //³õÊ¼»¯ÑÓÊ±º¯Êı,lys£ºÍ¨¹ı·ÖÎö¿ÉµÃÏµÍ³Ê±ÖÓÎª168M
-    delay_ms(1500);     // µçÔ´¹ÜÀí°åÑÓÊ±Æô¶¯
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);//ï¿½ï¿½ï¿½ï¿½ï¿½ÏµÍ³ï¿½Ğ¶ï¿½ï¿½ï¿½ï¿½È¼ï¿½ï¿½ï¿½ï¿½ï¿½2
+    delay_init(168);    //ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½,ÏµÍ³Ê±ï¿½ï¿½Îª168M
+    delay_ms(1500);     //ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
     TRACE_OUT(DEBUG_OUT, "<DYGLB> system init ......\r\n");
-	//todo:
-	
-	/* GSDJ_GOK  GSDI_GOC */
-	
-	/* PWR_SPI */
-	Spi1_Gpio_Init();        		//spi1 gpio³õÊ¼»¯
-	
-	/* PWR_UART */
-	usart1_init(115200);      		// ´®¿Ú1³õÊ¼»¯
-	
-	MAC5048_init();
-	
-	i2c_all_init();					//³õÊ¼»¯I2C
 
-	Spi1_Gpio_Init();        		//spi1 gpio³õÊ¼»¯
- 	Spi1_Configuration();			//spi1 ¹¦ÄÜÅäÖÃ
-	AD5542_Init();					//ad5542 Ïà¹Ø¹¦ÄÜ³õÊ¼»¯
-    AD7606_Init();					//ad7606 Ïà¹Ø¹¦ÄÜ³õÊ¼»¯ 
-	control_Gpio_Init();			//ÍâÉèÊ¹ÄÜ¹Ü½Å³õÊ¼»¯
-	Init_limitCurrent_Config();		//Ä¬ÈÏÏŞÁ÷ÅäÖÃ
-    EXTI_Configuration();    		//Íâ²¿ÖĞ¶Ï³õÊ¼»¯
-
-    usart1_init(115200);      		// ´®¿Ú2³õÊ¼»¯
-    timer2_int_init(TIM_1KHZ, TIMER_PRESCALER); //¶¨Ê±Æ÷2³õÊ¼»¯
-    softtimer_init();				//Èí¶¨Ê±Æ÷³õÊ¼»¯£¬ÒÀÍĞÓÚ¶¨Ê±Æ÷2£¬ËùÒÔÖ»ÄÜÔÚ¶¨Ê±Æ÷2ºó³õÊ¼»¯
-    TIM3_Int_Init(10-1,8400-1);		//¶¨Ê±Æ÷Ê±ÖÓ84M£¬·ÖÆµÏµÊı8400£¬ËùÒÔ84M/8400=10KhzµÄ¼ÆÊıÆµÂÊ£¬¼ÆÊı10´ÎÎª1ms£¬ÓÃÓÚ4001×Ô»Ö¸´Ê±¼ä¼ÆÊı    
-    IWDG_Init(4, 800);  			// ¿´ÃÅ¹·ÅäÖÃ£¬³¬Ê±Ê±¼ä1.6s 	
-	Flash_ReadBytes(0x080E0000,k_u32,sizeof(k_u32));
-	Flash_ReadBytes(0x080E0000+sizeof(k_u32),b_u32,sizeof(b_u32));
-	for(uint32_t i=0;i<13;i++)
-	{
-		k[i]=(uint32_t)k_u32[i]*1e-6;
-		b[i]=(int32_t)b_u32[i]*1e-6;
-	}
-	get_Default_Power(&before_default_config_power);//´ÓeppromÀï»ñÈ¡Ä¬ÈÏµÄÉÏµçÅäÖÃĞÅÏ¢,µ½before_default_config_powerÀï
-	config_Default_Power(before_default_config_power);//°´ÕÕbefore_default_config_powerÀïµÄÅäÖÃĞÅÏ¢£¬¶ÔÍâÉè½øĞĞÊ¹ÄÜ
+    led_init();
 
     TRACE_OUT(DEBUG_OUT, "<DYGLB> System init completed, enter loop ......\r\n");
     while(1)
-    {    
-      	softtimer_loop();				//Èí¶¨Ê±Æ÷Ñ­»·
-/*Êı¾İ·¢ËÍ*/
-		AD7606_StartConv();				//Í¨Öª7606¿ªÊ¼×ª»»		
-		Alldata_sliding_average(0);		//todo£º»¬¶¯¾ùÖµ´¦Àí£¬¹¦ÄÜÒÔÍêÉÆ£¬µ«Êµ¼ÊÎ´Ê¹ÓÃ
-		AD7606Analog_data_Conversion();	//Êı×ÖÁ¿×ª»»ÎªÄ£ÄâÁ¿
-		data_Packet_Creat();			//·¢ËÍÊı¾İ°ü´´½¨
-		messageData_Send();				//·¢ËÍÊı¾İ
-		temp=diffTimer(temp);			
-/*Êı¾İ½ÓÊÕ¼°´¦Àí*/
-		ret=messageData_Recive();		//ÏûÏ¢½ÓÊÕ
-		temp=timer_getms_count();		
-		if(ret==1)						//Èç¹ûÊı¾İ½ÓÊÜÕıÈ·£¬¾ÍÏÂ·¢ĞÅÏ¢
-		{
-			operation_dev();			//¿ØÖÆÉè±¸¿ª¹Ø
-			limitCurrent_Config();		//ÉèÖÃÏŞÁ÷
-			save_Default_Power();		//´æ´¢ÏÂ·¢µÄÄ¬ÈÏÉÏµçÅäÖÃĞÅÏ¢
-		}
-		else
-		{
-			errNum++;
-			TRACE_OUT(DEBUG_OUT, "LIMIT CURENT MESSGE RECIVE ERROR\r\n");
-		}
-/*Éè±¸´ò¿ªºó4001×Ô»Ö¸´±£³ÖÊ±¼äÉèÖÃ*/ 
-		selfRecoveTime(1000);//ÉèÖÃ±£³Ö1000ms
-
-    	//TRACE_OUT(DEBUG_OUT, "temp===**************%d*********************\r\n",temp);	
-        //LYSprintf(DEBUG_OUT,"LIMIT CURENT MESSGE RECIVE ERROR,errNum=%d\r\n",errNum);
-		
-        delay_ms(1); 
+    {
+        GPIO_SetBits(GPIOD, GPIO_Pin_2);
+        delay_ms(500);
+        GPIO_ResetBits(GPIOD, GPIO_Pin_2);
+        delay_ms(500);
+        TRACE_OUT(DEBUG_OUT, "<DYGLB> heartbeat ......\r\n");
     }
 }
-
-
-

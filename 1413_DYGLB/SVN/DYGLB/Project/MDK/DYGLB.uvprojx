@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F40_41xxx,USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\Core;..\..\FWLIB\inc;..\..\Hardware\BSP;..\..\Hardware\BSP_Port;..\..\Middleware\alloc;..\..\Middleware\logger;..\..\Middleware\MultiTimer;..\..\Middleware\Ring-Buffer;..\..\System\delay;..\..\System\sys;..\..\System\usart;..\..\User;..\..\Utilities;..\RTT</IncludePath>
+              <IncludePath>..\..\App;..\..\Bsp;..\..\Core;..\..\Dev;..\..\FWLIB\inc;..\..\Hardware\BSP;..\..\Hardware\BSP_Port;..\..\Middleware\alloc;..\..\Middleware\logger;..\..\Middleware\MultiTimer;..\..\Middleware\Ring-Buffer;..\..\User;..\..\Utilities;..\RTT</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -467,72 +467,72 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>BSP</GroupName>
+          <GroupName>APP</GroupName>
           <Files>
             <File>
-              <FileName>timer.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP\timer.c</FilePath>
-            </File>
-            <File>
-              <FileName>iwdg.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP\iwdg.c</FilePath>
-            </File>
-            <File>
-              <FileName>AD7606_Driver.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP\AD7606_Driver.c</FilePath>
-            </File>
-            <File>
-              <FileName>ad5542_driver.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP\ad5542_driver.c</FilePath>
-            </File>
-            <File>
-              <FileName>periph_i2c.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP\periph_i2c.c</FilePath>
-            </File>
-            <File>
-              <FileName>periph_i2c.h</FileName>
+              <FileName>app_config.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\Hardware\BSP\periph_i2c.h</FilePath>
-            </File>
-            <File>
-              <FileName>at24cxx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP_Port\at24cxx.c</FilePath>
-            </File>
-            <File>
-              <FileName>at24cxx.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\..\Hardware\BSP_Port\at24cxx.h</FilePath>
-            </File>
-            <File>
-              <FileName>mac5048.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\Hardware\BSP\mac5048.c</FilePath>
+              <FilePath>..\..\App\app_config.h</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>System</GroupName>
+          <GroupName>DEV</GroupName>
           <Files>
+            <File>
+              <FileName>lc1258.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Dev\lc1258.h</FilePath>
+            </File>
+            <File>
+              <FileName>gda6641.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Dev\gda6641.h</FilePath>
+            </File>
+            <File>
+              <FileName>efuse.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Dev\efuse.h</FilePath>
+            </File>
+            <File>
+              <FileName>xca4001.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Dev\xca4001.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>BSP</GroupName>
+          <Files>
+            <File>
+              <FileName>board_map.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Bsp\board_map.h</FilePath>
+            </File>
             <File>
               <FileName>delay.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\System\delay\delay.c</FilePath>
+              <FilePath>..\..\Bsp\delay.c</FilePath>
             </File>
             <File>
               <FileName>sys.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\System\sys\sys.c</FilePath>
+              <FilePath>..\..\Bsp\sys.c</FilePath>
             </File>
             <File>
               <FileName>usart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\System\usart\usart.c</FilePath>
+              <FilePath>..\..\Bsp\usart.c</FilePath>
+            </File>
+            <File>
+              <FileName>timer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Bsp\timer.c</FilePath>
+            </File>
+            <File>
+              <FileName>iwdg.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Bsp\iwdg.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -553,21 +553,6 @@
               <FileName>system_stm32f4xx.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\User\system_stm32f4xx.c</FilePath>
-            </File>
-            <File>
-              <FileName>control_Dev.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\User\control_Dev.c</FilePath>
-            </File>
-            <File>
-              <FileName>control_Dev.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\..\User\control_Dev.h</FilePath>
-            </File>
-            <File>
-              <FileName>transf_jkkzb.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\User\transf_jkkzb.c</FilePath>
             </File>
           </Files>
         </Group>
