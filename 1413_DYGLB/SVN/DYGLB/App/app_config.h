@@ -54,6 +54,13 @@
 /* ---------------- 电源控制参数 ---------------- */
 #define DEFAULT_I_LIMIT_MA   0           /* 上电默认限流 0mA=关断式, FPGA 须先下发限流再开电, 待联调确认 */
 
+/* ---------------- 周期任务参数 (app_main.c 注册 MultiTimer 周期, 单位 ms) ---------------- */
+#define TASK_MONITOR_MS      1           /* 1ms 采集轮询 (DRDY 就绪读样本) */
+#define TASK_CONVERT_MS      100         /* 100ms 码值换算+校准 + 告警判定 */
+#define TASK_UPLOAD_MS       100         /* 100ms 上传帧组包发送 (MCU->FPGA) */
+#define TASK_PROTO_MS        200         /* 200ms 下发帧收发与指令消费 (FPGA->MCU) */
+#define TASK_LED_MS          500         /* 500ms LED 心跳翻转 */
+
 /* ---------------- App 共享类型 ---------------- */
 
 /* 设备测量值 (上传帧内容, MCU 采集上传 FPGA) */

@@ -504,6 +504,16 @@
               <FileType>5</FileType>
               <FilePath>..\..\App\app_power.h</FilePath>
             </File>
+            <File>
+              <FileName>app_main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\App\app_main.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_main.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\App\app_main.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -639,11 +649,6 @@
         <Group>
           <GroupName>User</GroupName>
           <Files>
-            <File>
-              <FileName>main.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\User\main.c</FilePath>
-            </File>
             <File>
               <FileName>system_stm32f4xx.c</FileName>
               <FileType>1</FileType>

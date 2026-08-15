@@ -1,22 +1,18 @@
 /*
 **************************************************************************************************************
-    @brief      : 软定时器接口及软定时任务
+    @brief      : Software timer interface and loop processing
     @author     : xiongjiqi
     @date       : 24/07/01
+    @note       : 1. LED heartbeat moved to App layer (app_main.c task_led_cb),
+                   watchdog is fed by main loop; legacy blink timer removed
+                   2026-08 (Task12 integration)
 **************************************************************************************************************
 */
 #include "bsp_timer.h"
-#include "bsp_iwdg.h"
 #include "softtimer.h"
-#include "main.h"
 
 
-_time_t blink_timer = {0};
-
-/* 软定时事件声明 */
-void blink_timer_start(void);
-
-
+/* Platform tick source: TIM2 1kHz ms counter (bsp_timer_getms_count) */
 uint64_t PlatformTicksGetFunc(void)
 {
     return bsp_timer_getms_count();
@@ -38,43 +34,21 @@ int softtimer_stop(_time_t *timer)
     return ret;
 }
 
-/*
-    @brief      : 看门狗喂狗和led闪烁
-*/
-void blinkled_callback(_time_t* timer, void* userData)
-{
-    static u32 blink_count = 0;
-
-    blink_count++;
-    if(blink_count%2 == 0)
-        GPIO_SetBits(GPIOD,GPIO_Pin_2);
-    else
-        GPIO_ResetBits(GPIOD,GPIO_Pin_2);
-        
-    bsp_iwdg_feed();    // 每隔500ms喂狗一次
-    blink_timer_start();    // 开启下一个周期
-}
-void blink_timer_start(void)
-{
-    softtimer_start(&blink_timer, 500, blinkled_callback, &blink_timer);
-}
-
 
 /*
-    @brief      : 软定时器初始化
+    @brief      : Software timer init (install tick source only)
+    @note       : Periodic tasks are registered by app_tasks_init()
+                  in App layer after softtimer_init()
 */
 int softtimer_init(void)
 {
     MultiTimerInstall(PlatformTicksGetFunc);
 
-    /* 添加softtimet start */
-	
-    blink_timer_start();
     return 0;
 }
 
-/* 
-    @brief      : 软定时器循环
+/*
+    @brief      : Software timer loop (dispatch expired timer callbacks)
 */
 void softtimer_loop(void)
 {
@@ -82,7 +56,3 @@ void softtimer_loop(void)
      (void)MultiTimerYield();
 
 }
-
-
-
-
