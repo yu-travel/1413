@@ -311,18 +311,19 @@ static void monitor_alarm_eval(void)
     s_alarm_state = alarm;
 
     /* 4 轨 XCA4001 ALERT 辅助告警 (低电平=告警, 待联调确认极性),
-       不进 15 路告警字: bit0=3V3 bit1=5V0 bit2=28V0 bit3=12V0 */
+       不进 15 路告警字, 位序与 rail_cur_a 一致 (CH3 AIN0~3 = 3V3/12V0/5V0/28V0):
+       bit0=3V3 bit1=12V0 bit2=5V0 bit3=28V0 */
     g_monitor.aux_alarm = 0u;
     if (GPIO_ReadInputDataBit(VCC_3V3_ALERT_PORT, VCC_3V3_ALERT_PIN) == Bit_RESET) {
         g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(0u);
     }
-    if (GPIO_ReadInputDataBit(VCC_5V0_ALERT_PORT, VCC_5V0_ALERT_PIN) == Bit_RESET) {
+    if (GPIO_ReadInputDataBit(VCC_12V0_ALERT_PORT, VCC_12V0_ALERT_PIN) == Bit_RESET) {
         g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(1u);
     }
-    if (GPIO_ReadInputDataBit(VCC_28V0_ALERT_PORT, VCC_28V0_ALERT_PIN) == Bit_RESET) {
+    if (GPIO_ReadInputDataBit(VCC_5V0_ALERT_PORT, VCC_5V0_ALERT_PIN) == Bit_RESET) {
         g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(2u);
     }
-    if (GPIO_ReadInputDataBit(VCC_12V0_ALERT_PORT, VCC_12V0_ALERT_PIN) == Bit_RESET) {
+    if (GPIO_ReadInputDataBit(VCC_28V0_ALERT_PORT, VCC_28V0_ALERT_PIN) == Bit_RESET) {
         g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(3u);
     }
 }

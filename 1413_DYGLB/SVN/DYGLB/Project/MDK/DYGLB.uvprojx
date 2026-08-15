@@ -494,6 +494,16 @@
               <FileType>5</FileType>
               <FilePath>..\..\App\app_protocol.h</FilePath>
             </File>
+            <File>
+              <FileName>app_power.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\App\app_power.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_power.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\App\app_power.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

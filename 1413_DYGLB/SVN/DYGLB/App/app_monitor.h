@@ -42,8 +42,9 @@ typedef struct {
     float hal_ch0_v, hal_ch1_v;    /* GSDJ_HAL_CH0 (AIN4) / CH1 (AIN5), 电压直读 */
     float dygy_fault_v, gsdj_fault_v;    /* FAULT 模拟量电压 (AIN10/AIN11) */
     u8   dygy_fault_type, gsdj_fault_type; /* 0正常 1比较器 2MOS 3过温过压 4过流 5短路 */
-    u8   aux_alarm;           /* 4 轨 XCA4001 ALERT 辅助告警 (不进 15 路告警字):
-                                 bit0=3V3 bit1=5V0 bit2=28V0 bit3=12V0 */
+    u8   aux_alarm;           /* 4 轨 XCA4001 ALERT 辅助告警 (不进 15 路告警字),
+                                 位序与 rail_cur_a 一致:
+                                 bit0=3V3 bit1=12V0 bit2=5V0 bit3=28V0 */
 } monitor_data_t;
 
 extern monitor_data_t g_monitor;      /* 全局实例 */
