@@ -5,7 +5,7 @@
 #include "stm32f4xx.h"
 
 /*
-    @brief      : DYGLB 电源管理板全板引脚定义总表 (STM32F407VGTx)
+    @brief      : DYGLB 电源管理板全板引脚定义总表 (STM32F407IGTx, LQFP176)
     @note       : 数据来源: doc\原理图管脚连接关系.txt
                   g_dev_map[] / g_t_map[] / g_dac_pin_map[] / g_adc_pin_map[]
                   由 bsp_board.c 实例化, 本文件只做类型与声明

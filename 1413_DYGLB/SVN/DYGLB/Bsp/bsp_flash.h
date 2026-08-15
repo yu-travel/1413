@@ -3,6 +3,12 @@
 
 #include "types_def.h"
 
+/*
+    @brief      : 校准数据 Flash 读写接口
+    @note       : float 按字直存, 依赖 Cortex-M 小端 + IEEE754 单精度表示
+                  布局: [u32 魔数][n × float k][n × float b]
+                  魔数最后写入, 作为数据有效性的提交标记
+*/
 #define CAL_FLASH_ADDR   0x080E0000u   /* 校准数据扇区 (1MB Flash 的 Sector11) */
 #define CAL_FLASH_MAGIC  0x14130141u   /* 校准数据魔数 */
 #define CAL_NUM          45             /* 15路 × V/I/T, 待确认#7 */

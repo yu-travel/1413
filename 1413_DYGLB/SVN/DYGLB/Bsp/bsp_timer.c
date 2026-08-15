@@ -44,7 +44,7 @@ static void timer2_int_init(u16 arr, u16 psc)
 /*
     @brief      : TIM3 中断初始化 (1ms tick)
 */
-static void TIM3_int_init(u16 arr, u16 psc)
+static void timer3_int_init(u16 arr, u16 psc)
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseInitStructure;
     NVIC_InitTypeDef NVIC_InitStructure;
@@ -75,7 +75,7 @@ static void TIM3_int_init(u16 arr, u16 psc)
 void bsp_timer_init(void)
 {
     timer2_int_init(TIMER_ARR_1MS, TIMER_PSC_1MHZ);
-    TIM3_int_init(TIMER_ARR_1MS, TIMER_PSC_1MHZ);
+    timer3_int_init(TIMER_ARR_1MS, TIMER_PSC_1MHZ);
 }
 
 /*

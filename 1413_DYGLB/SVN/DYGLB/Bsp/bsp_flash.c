@@ -50,6 +50,8 @@ u8 bsp_flash_cal_read(float *k, float *b, u8 n)
 
 /*
     @brief      : 写校准数据 (擦除整个 Sector11 后编程)
+    @note       : 数据先写, 魔数最后写 —— 写中断电则魔数缺失,
+                  读侧校验失败回默认值, 避免魔数有效+数据半写的误判
     @retval     : 1 成功, 0 失败
 */
 u8 bsp_flash_cal_write(const float *k, const float *b, u8 n)
@@ -73,12 +75,6 @@ u8 bsp_flash_cal_write(const float *k, const float *b, u8 n)
         return 0;
     }
 
-    status = FLASH_ProgramWord(CAL_FLASH_ADDR, CAL_FLASH_MAGIC);
-    if (status != FLASH_COMPLETE) {
-        FLASH_Lock();
-        return 0;
-    }
-
     addr = CAL_FLASH_ADDR + 4;
     for (i = 0; i < n; i++) {
         fw.f = k[i];
@@ -97,6 +93,13 @@ u8 bsp_flash_cal_write(const float *k, const float *b, u8 n)
             return 0;
         }
         addr += 4;
+    }
+
+    /* 魔数最后写入, 作为整段数据有效性的提交标记 */
+    status = FLASH_ProgramWord(CAL_FLASH_ADDR, CAL_FLASH_MAGIC);
+    if (status != FLASH_COMPLETE) {
+        FLASH_Lock();
+        return 0;
     }
 
     FLASH_Lock();
