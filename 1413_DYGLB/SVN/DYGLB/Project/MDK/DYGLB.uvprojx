@@ -485,6 +485,11 @@
               <FilePath>..\..\Dev\lc1258.h</FilePath>
             </File>
             <File>
+              <FileName>lc1258.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Dev\lc1258.c</FilePath>
+            </File>
+            <File>
               <FileName>gda6641.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\Dev\gda6641.h</FilePath>
