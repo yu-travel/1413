@@ -14,7 +14,10 @@
                      经 dev_map_t.fault_port[] 直读, 不经过本驱动,
                      其 handle 的 gok_port/goc_port 填 NULL/0
                   4. HQEF5016: GOK 全局故障开漏拉低 (锁存), GOC 稳态过流
-                     预警开漏拉低 (自动恢复), 由 efuse_is_fault() 读取
+                     预警开漏拉低 (自动恢复), 由 efuse_is_gok_goc() 读取
+                     注意: 该函数仅对 HQEF5016 的 GOK/GOC 有效,
+                     MAC5048 handle 恒返回 0, 其故障须由 App 层经
+                     dev_map_t.fault_port[] 直读 FAULT 引脚判定
 */
 typedef struct {
     GPIO_TypeDef *en_port;   /* 使能输出 EN    OUT_PP (高有效) */
@@ -28,6 +31,6 @@ typedef struct {
 void efuse_on(efuse_handle_t *h);
 void efuse_off(efuse_handle_t *h);
 void efuse_clear_latch(efuse_handle_t *h);
-u8   efuse_is_fault(efuse_handle_t *h);
+u8   efuse_is_gok_goc(efuse_handle_t *h);
 
 #endif /* __EFUSE_H_ */

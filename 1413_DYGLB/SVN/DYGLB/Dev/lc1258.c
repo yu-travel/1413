@@ -213,8 +213,9 @@ u8 lc1258_data_ready(lc1258_handle_t *h)
                   [1 字节状态][3 字节 24bit ADC 数据]; 数据为二进制补码 MSB 先行;
                   读取操作不影响进行中的转换 (数据手册 RDATA 缓冲语义);
                   状态字节含 NEW/OVF/SUPPLY/CHID, 此处仅取 CHID 返回, 其余位丢弃,
-                  NEW/OVF 监测由上层通过轮询 DRDY 保证数据新鲜
-                  (Auto-Scan 模式下未及时读会被下一轮转换覆盖);
+                  NEW/OVF 监测由上层通过轮询 DRDY 保证数据新鲜;
+                  RDATA 为缓冲读, 缓冲数据不会被新转换覆盖,
+                  但上层超时未读将丢失本轮数据 (随 DRDY 轮询节奏读取即可保证新鲜)
                   24bit → s32 符号扩展: (b1<<24|b2<<16|b3<<8) 算术右移 8 位
     @param[in]  : h     LC1258 实例句柄
     @param[out] : chid  状态字节低 5 位 = 当前采样通道编号 (Auto-Scan 有效), 可传 NULL

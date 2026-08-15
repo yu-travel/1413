@@ -9,7 +9,8 @@
                      重新拉高, 芯片清除锁存并重启软启动流程
                   3. 本驱动专注 EN 控制; MAC5048 的 FAULT 状态引脚直读
                      由 App 层完成 (dev_map_t.fault_port[]),
-                     efuse_is_fault() 仅面向 HQEF5016 的 GOK/GOC 设计
+                     efuse_is_gok_goc() 仅面向 HQEF5016 的 GOK/GOC 设计
+                     (MAC5048 handle 调用恒返回 0, 勿用于故障判定)
                   4. delay_us() 依赖 delay_init 已由 main.c 完成
 */
 
@@ -65,18 +66,20 @@ void efuse_clear_latch(efuse_handle_t *h)
 }
 
 /*
-    @brief      : 查询电子保险丝故障状态 (仅 HQEF5016 的 GOK/GOC)
+    @brief      : 查询电子保险丝 GOK/GOC 状态 (仅 HQEF5016 有效)
     @note       : GOK/GOC 均为开漏输出, 低电平有效:
                   GOK=0 全局故障 (锁存, 需 efuse_clear_latch 清除),
                   GOC=0 稳态过流预警 (负载回落自动恢复);
                   任一拉低即返回 1
+                  本函数仅面向 HQEF5016 的 GOK/GOC 设计:
                   MAC5048 的 handle 中 gok_port/goc_port 为 NULL/0,
-                  本函数不读取, 其 FAULT 引脚由 App 层直读
+                  本函数不读取且恒返回 0, 其 FAULT 引脚由 App 层经
+                  dev_map_t.fault_port[] 直读, 切勿用本函数判定 MAC5048 故障
     @param[in]  : h    EFUSE 实例句柄
     @param[out] : none
-    @retval     : 1 = 有故障/过流预警; 0 = 无故障或句柄无效
+    @retval     : 1 = GOK/GOC 任一拉低 (故障/过流预警); 0 = 无故障或句柄无效
 */
-u8 efuse_is_fault(efuse_handle_t *h)
+u8 efuse_is_gok_goc(efuse_handle_t *h)
 {
     if (h == NULL) {
         return 0;

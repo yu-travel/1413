@@ -22,7 +22,7 @@ typedef struct {
 
 void xca4001_set_latch_mode(xca4001_handle_t *h);
 void xca4001_set_auto_mode(xca4001_handle_t *h);
-void xca4001_clear_latch(xca4001_handle_t *h);
+void xca4001_clear_latch(xca4001_handle_t *h);  /* 脉冲结束后 RESET 回到锁存模式 (RST=1), 如需自恢复模式须再调 xca4001_set_auto_mode() */
 u8   xca4001_alert_active(xca4001_handle_t *h);
 
 #endif /* __XCA4001_H_ */
