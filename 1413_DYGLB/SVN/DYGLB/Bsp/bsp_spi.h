@@ -2,6 +2,7 @@
 #define __BSP_SPI_H_
 
 #include "types_def.h"
+#include "stm32f4xx.h"
 
 /*
     @brief      : SPI1 FPGA 主机通信接口 (电源控制板 <-> FPGA)
