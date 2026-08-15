@@ -6,7 +6,6 @@
 ***********************************************************************************************************************
 */
 #include "timer.h"
-#include "periph_i2c.h"
 
  
 volatile u64 timer2_count = 0;
@@ -101,7 +100,11 @@ void TIM3_Int_Init(u16 arr,u16 psc)
 }
 
 
-extern uint32_t dev_Open_counter_time[DEVNUM];//��λΪms
+#define DEVNUM          2
+#define TSGY_DEV_NUM    (0)
+#define KF_DEV_NUM      (1)
+
+u32 dev_Open_counter_time[DEVNUM] = {0};//device open counter, unit ms
 //��ʱ��3�жϷ�����
 void TIM3_IRQHandler(void)
 {

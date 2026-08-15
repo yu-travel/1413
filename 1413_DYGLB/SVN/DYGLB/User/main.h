@@ -30,16 +30,9 @@ extern "C"
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx.h"
 #include "SEGGER_RTT.h"
-#include "usart.h"
 #include "delay.h"
-#include "sys.h"
 
 /* Private defines -----------------------------------------------------------*/
-
-#define DEVNUM  2
-
-#define TSGY_DEV_NUM	(0)
-#define KF_DEV_NUM	(1)
 
 #ifdef __cplusplus
 }

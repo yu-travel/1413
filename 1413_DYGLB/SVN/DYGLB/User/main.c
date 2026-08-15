@@ -2,8 +2,6 @@
 #include "delay.h"
 #include "types_def.h"
 
-uint32_t dev_Open_counter_time[DEVNUM] = {0};//timer.c ��ʱʹ�õ��豸�����Ƽ���,�������������ؽ���Ǩ��
-
 /*
     @brief      : LED ��ʼ��,PD2
     @param[in]  : none

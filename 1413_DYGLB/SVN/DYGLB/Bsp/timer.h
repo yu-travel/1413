@@ -1,7 +1,6 @@
 #ifndef _TIMER_H
 #define _TIMER_H
 #include "types_def.h"
-#include "main.h"
 #include "sys.h"
 
 
@@ -16,23 +15,23 @@
 #define TIM_100KHZ                  TIM_HZ(100000)
 #define TIM_200KHZ                  TIM_HZ(200000)
 
-#define TIM_DEFAULT                 TIM_25KHZ       // 25Khz下PWM控制比较细腻
+#define TIM_DEFAULT                 TIM_25KHZ       // 25Khz锟斤拷PWM锟斤拷锟狡比斤拷细锟斤拷
 
 
-//通用定时器2中断初始化
-//arr：自动重装值。
-//psc：时钟预分频数
-//定时器溢出时间计算方法:Tout=((arr+1)*(psc+1))/Ft us.
-//Ft=定时器工作频率,单位:Mhz
-//这里使用的是定时器2!预计中断周期1ms;
+//通锟矫讹拷时锟斤拷2锟叫断筹拷始锟斤拷
+//arr锟斤拷锟皆讹拷锟斤拷装值锟斤拷
+//psc锟斤拷时锟斤拷预锟斤拷频锟斤拷
+//锟斤拷时锟斤拷锟斤拷锟绞憋拷锟斤拷锟姐方锟斤拷:Tout=((arr+1)*(psc+1))/Ft us.
+//Ft=锟斤拷时锟斤拷锟斤拷锟斤拷频锟斤拷,锟斤拷位:Mhz
+//锟斤拷锟斤拷使锟矫碉拷锟角讹拷时锟斤拷2!预锟斤拷锟叫讹拷锟斤拷锟斤拷1ms;
 void timer2_int_init(u16 arr,u16 psc);
 
-//通用定时器3中断初始化
-//arr：自动重装值。
-//psc：时钟预分频数
-//定时器溢出时间计算方法:Tout=((arr+1)*(psc+1))/Ft us.
-//Ft=定时器工作频率,单位:Mhz
-//这里使用的是定时器3!
+//通锟矫讹拷时锟斤拷3锟叫断筹拷始锟斤拷
+//arr锟斤拷锟皆讹拷锟斤拷装值锟斤拷
+//psc锟斤拷时锟斤拷预锟斤拷频锟斤拷
+//锟斤拷时锟斤拷锟斤拷锟绞憋拷锟斤拷锟姐方锟斤拷:Tout=((arr+1)*(psc+1))/Ft us.
+//Ft=锟斤拷时锟斤拷锟斤拷锟斤拷频锟斤拷,锟斤拷位:Mhz
+//锟斤拷锟斤拷使锟矫碉拷锟角讹拷时锟斤拷3!
 void TIM3_Int_Init(u16 arr,u16 psc);
 
 u64 timer_getms_count(void);
