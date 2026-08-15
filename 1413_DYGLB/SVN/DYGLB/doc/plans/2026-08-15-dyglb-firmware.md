@@ -6,7 +6,7 @@
 
 **Architecture:** 顶层重建 `App/`、`Dev/`、`Bsp/` 三个目录；`FWLIB`（ST 标准库）、`Core`、`Middleware`、`Utilities` 复用不动；旧代码（AD7606、AD5542、control_Dev、transf_jkkzb 及旧协议）全部移除。GDA6641 与 LC1258 均采用 GPIO 位操作模拟时序，SPI1（10MHz 主机）与 FPGA 通信。
 
-**Tech Stack:** STM32F407VGTx + ST 标准库 1.8.0、Keil MDK (AC5)、SEGGER RTT、elog、MultiTimer 软定时器、AT24C02 EEPROM、内部 Flash 校准。
+**Tech Stack:** STM32F407IGTx(LQFP176) + ST 标准库 1.8.0、Keil MDK (AC5)、SEGGER RTT、elog、MultiTimer 软定时器、内部 Flash 校准。无 EEPROM（上电默认全关，默认开关状态由 FPGA 下发帧提供）。
 
 ---
 
@@ -113,7 +113,6 @@ DYGLB/
 │   ├── bsp_usart.c/h             # USART1 调试(自 System/usart 迁移)
 │   ├── bsp_timer.c/h             # TIM2 1kHz + TIM3 1ms(自 Hardware/BSP/timer 迁移)
 │   ├── bsp_iwdg.c/h              # 独立看门狗(迁移)
-│   ├── bsp_eeprom.c/h            # AT24C02(自 at24cxx+myiic 迁移)
 │   ├── bsp_flash.c/h             # 0x080E0000 校准参数读写
 │   ├── bsp_it.c/h                # 中断服务(自 stm32f4xx_it 迁移)
 │   └── delay.c/h + sys.c/h       # 自 System/ 迁移
@@ -217,13 +216,13 @@ void bsp_spi_transfer(u8 *tx, u8 *rx, u16 len);
 
 ### Task 5: BSP 层 —— bsp_timer/iwdg/eeprom/flash/it
 
-**Files:** 迁移+改造 `Bsp/bsp_timer.c`、`bsp_iwdg.c`、`bsp_eeprom.c`、`bsp_flash.c`、`bsp_it.c`
+**Files:** 迁移+改造 `Bsp/bsp_timer.c`、`bsp_iwdg.c`、`bsp_flash.c`、`bsp_it.c`（EEPROM 已取消，见待确认#5）
 
-- [ ] **Step 1:** TIM2 1kHz 软定时 tick（供 softtimer），TIM3 1ms
-- [ ] **Step 2:** IWDG_Init(4,800) ~1.6s，主循环喂狗
-- [ ] **Step 3:** AT24C02 读写（迁移 at24cxx + myiic），接口 `eeprom_read/write(addr, buf, len)`
-- [ ] **Step 4:** Flash 0x080E0000 校准区：`flash_cal_read(k,b)` / `flash_cal_write(k,b)`（45 组 k/b float，带魔数校验）
-- [ ] **Step 5:** 中断服务迁移到 `bsp_it.c`（TIM2/TIM3 IRQ → softtimer tick）
+- [ ] **Step 1:** TIM2 1kHz 软定时 tick（供 softtimer），TIM3 1ms；timer.c/h 改名 bsp_timer.c/h，接口收敛为 `bsp_timer_init()`
+- [ ] **Step 2:** IWDG_Init(4,800) ~1.6s，主循环喂狗；iwdg.c/h 改名 bsp_iwdg.c/h
+- [ ] **Step 3:** Flash 0x080E0000 校准区：`flash_cal_read(k,b)` / `flash_cal_write(k,b)`（45 组 k/b float，带魔数校验）
+- [ ] **Step 4:** 中断服务迁移到 `bsp_it.c`（SysTick/TIM2/TIM3 IRQ），stm32f4xx_it.c 移出编译
+- [ ] **Step 5:** Keil Device 由 STM32F407VGTx 改为 STM32F407IGTx（实际封装 LQFP176，已确认）
 - [ ] **Step 6:** 编译验证；Commit
 
 ### Task 6: Dev 层 —— gda6641.c/h（DAC 驱动）
@@ -324,7 +323,7 @@ u8   efuse_is_fault(efuse_handle_t *h);      /* 读FAULT/GOK */
 
 **Files:** 新建 `App/app_power.c/h`
 
-- [ ] **Step 1:** `power_apply_default()`：上电读 EEPROM 默认开关状态（无记录则全关）→ 配置 15 路 EN；FPGA 下发帧携带默认状态时同步更新 EEPROM（两者兼容，优先级可配）
+- [ ] **Step 1:** `power_apply_default()`：上电默认全关（无 EEPROM）；FPGA 下发帧携带"电源开关默认状态"字段时按帧配置（见协议 §1.3）
 - [ ] **Step 2:** `power_handle_cmd()`：处理 FPGA 下发开关指令（开→EN 高；关→EN 低；状态翻转时自动清 MAC5048 锁存）
 - [ ] **Step 3:** 限流配置 `power_set_limit(dev, i_limit_mA)`：换算 `V_CLREF = I × (0.09 或 0.02)` → `D = V_CLREF/2.5×65536` → `gda6641_write_input` 缓存 15 路 → `gda6641_update_all` 同步刷新
 - [ ] **Step 4:** 故障恢复策略：默认"MCU 只上报告警，开关/清锁存由 FPGA 指令驱动"；XCA4001 锁存清除用 ≥100ns RESET 低脉冲（预留自动恢复开关）
@@ -360,8 +359,9 @@ u8   efuse_is_fault(efuse_handle_t *h);      /* 读FAULT/GOK */
 
 3. LC1258 DOUT（PH12/PE14/PF7/PF8）文档标注"模拟，跳过 GPIO"与 SPI 数据输出功能矛盾 —— 代码按 DOUT=输入 处理
 4. SPI 时钟 10MHz 无法整除（84/8=10.5MHz）—— 配置宏
-5. 默认开关状态存储位置 —— EEPROM 与 FPGA 帧两者兼容，优先级可配
+5. ~~默认开关状态存储位置~~ —— 已确认：无 EEPROM，上电默认全关，FPGA 帧下发
 6. 故障恢复策略 —— 默认"MCU 只上报，FPGA 指令驱动"
 7. 校准方案规模 —— 45 组 k/b（15 路×V/I/T）存 Flash 0x080E0000
 8. PE13/PF13 空置确认
 9. FAULT 模拟量电压分段阈值容差（±多少 mV）
+10. ~~MCU 封装~~ —— 已确认：STM32F407IGTx (LQFP176)，Keil Device 已改
