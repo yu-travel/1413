@@ -474,6 +474,16 @@
               <FileType>5</FileType>
               <FilePath>..\..\App\app_config.h</FilePath>
             </File>
+            <File>
+              <FileName>app_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\App\app_protocol.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_protocol.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\App\app_protocol.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
