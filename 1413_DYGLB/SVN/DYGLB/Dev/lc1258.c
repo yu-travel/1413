@@ -96,7 +96,7 @@ u8 lc1258_init(lc1258_handle_t *h)
     }
 
     lc1258_write_reg(h, LC1258_REG_CONFIG0, 0x0A);      /* Auto-Scan + 带状态字节, 内部直连, 不开斩波 */
-    lc1258_write_reg(h, LC1258_REG_CONFIG1, 0x01);      /* Standby + 无切换延时 + 无偏置 + 7.813kSPS */
+    lc1258_write_reg(h, LC1258_REG_CONFIG1, 0x01);      /* Standby + 无切换延时 + 无偏置 + DRATE=01 (Auto-Scan 每通道 6.168kSPS, fCLK=16MHz) */
     lc1258_write_reg(h, LC1258_REG_MUXSG0, 0xFF);       /* 单端通道 AIN0~AIN7 全部开启 */
     lc1258_write_reg(h, LC1258_REG_MUXSG1, 0xFF);       /* 单端通道 AIN8~AIN15 全部开启 */
 
@@ -208,10 +208,13 @@ u8 lc1258_data_ready(lc1258_handle_t *h)
 
 /*
     @brief      : 读取当前通道转换结果 (RDATA 寄存器格式读)
-    @note       : CS=0 → 发命令 0x30 (MUL 必须=1) → 随后 32 个 SCLK 读回
+    @note       : 调用前须由上层轮询 lc1258_data_ready() 确认 DRDY 拉低;
+                  CS=0 → 发命令 0x30 (MUL 必须=1) → 随后 32 个 SCLK 读回
                   [1 字节状态][3 字节 24bit ADC 数据]; 数据为二进制补码 MSB 先行;
-                  RDATA 带缓冲, 无需与 DRDY 严格同步, 新转换不会覆盖旧读数;
-                  状态字节 NEW=1 表示数据未读取过, 上层可自行检查;
+                  RDATA 带缓冲, 新转换不会覆盖旧读数;
+                  状态字节含 NEW/OVF/SUPPLY/CHID, 此处仅取 CHID 返回, 其余位丢弃,
+                  NEW/OVF 监测由上层通过轮询 DRDY 保证数据新鲜
+                  (Auto-Scan 模式下未及时读会被下一轮转换覆盖);
                   24bit → s32 符号扩展: (b1<<24|b2<<16|b3<<8) 算术右移 8 位
     @param[in]  : h     LC1258 实例句柄
     @param[out] : chid  状态字节低 5 位 = 当前采样通道编号 (Auto-Scan 有效), 可传 NULL
