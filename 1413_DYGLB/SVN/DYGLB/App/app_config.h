@@ -24,6 +24,33 @@
 #define PROTO_RX_BUF_LEN     128             /* 接收缓冲, >= 帧总长 104B + 前导 10B */
 #define PROTO_TX_BUF_LEN     128             /* 发送缓冲, >= 上传帧总长 104B */
 
+/* ---------------- 采集换算系数 (doc 权威值, 联调可用 Flash k/b 校准修正) ---------------- */
+#define ADC_VREF            2.5f        /* LC1258 外部基准电压, 待确认 (联调校准) */
+#define ADC_FS_CODE         8388607.0f  /* 2^23-1 满量程码 */
+#define ADC_FS_SCALE        1.06f       /* ±1.06VREF 满量程 */
+#define MON_COEF_V_5048     8.0f        /* MAC5048 VOUT 分压系数 */
+#define MON_COEF_V_5016     11.722f     /* HQEF5016 VOUT: 16*(27.4/37.4) */
+#define MON_COEF_IMON_5048  (10.0f/28.2f)   /* MAC5048 IMON 引脚电压系数 */
+#define MON_COEF_IMON_5016  0.5f        /* HQEF5016 IMON: 1/2 */
+#define MON_COEF_I_R_5048   0.09f       /* MAC5048: 25uA/A * 3.6k */
+#define MON_COEF_I_R_5016   0.02f       /* HQEF5016: 10uA/A * 2k */
+#define MON_COEF_TEMP_5048  (10.0f/24.7f)   /* MAC5048 VTEMP 引脚电压系数 */
+#define MON_COEF_TEMP_5016  0.5f        /* HQEF5016 VTEMP: 1/2 */
+#define MON_T_OFFSET_5048   0.2f        /* MAC5048 VTEMP 电压偏置 V */
+#define MON_T_SLOPE_5048    0.0121f     /* MAC5048 温敏斜率 V/℃ */
+#define MON_T_OFFSET_5016   0.1525f     /* HQEF5016 VTEMP 电压偏置 V */
+#define MON_T_SLOPE_5016    0.0087f     /* HQEF5016 温敏斜率 V/℃ */
+#define MON_RSENSE_3V3      0.04f       /* XCA4001 3V3 轨采样电阻 Ω */
+#define MON_RSENSE_5V0      0.04f       /* XCA4001 5V0 轨采样电阻 Ω */
+#define MON_RSENSE_12V0     0.08f       /* XCA4001 12V0 轨采样电阻 Ω */
+#define MON_RSENSE_28V0     0.16f       /* XCA4001 28V0 轨采样电阻 Ω */
+#define MON_COEF_RAIL_28V0  (167.8f/17.8f)  /* 28V0 恒压源分压系数 */
+#define MON_COEF_RAIL_12V0  (195.0f/45.0f)  /* 12V0 恒压源分压系数 */
+#define MON_COEF_RAIL_5V0   2.0f        /* 5V0 恒压源分压系数 */
+#define MON_COEF_RAIL_3V3   1.0f        /* 3V3 恒压源直读 */
+#define FAULT_BAND_MV       150         /* FAULT 分段判定半带宽 mV, 待确认#9 */
+#define CAL_NUM_CH          3           /* 每设备 3 组校准: V/I/T */
+
 /* ---------------- App 共享类型 ---------------- */
 
 /* 设备测量值 (上传帧内容, MCU 采集上传 FPGA) */

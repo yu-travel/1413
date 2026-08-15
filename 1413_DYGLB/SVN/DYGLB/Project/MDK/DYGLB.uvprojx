@@ -475,6 +475,16 @@
               <FilePath>..\..\App\app_config.h</FilePath>
             </File>
             <File>
+              <FileName>app_monitor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\App\app_monitor.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_monitor.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\App\app_monitor.h</FilePath>
+            </File>
+            <File>
               <FileName>app_protocol.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\App\app_protocol.c</FilePath>
