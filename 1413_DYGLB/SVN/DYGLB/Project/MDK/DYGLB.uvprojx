@@ -490,6 +490,11 @@
               <FilePath>..\..\Dev\gda6641.h</FilePath>
             </File>
             <File>
+              <FileName>gda6641.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Dev\gda6641.c</FilePath>
+            </File>
+            <File>
               <FileName>efuse.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\Dev\efuse.h</FilePath>
