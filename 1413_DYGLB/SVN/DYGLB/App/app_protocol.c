@@ -9,12 +9,18 @@
                   3. 校验和: 帧头到校验和字段之前所有 16 位字段值累加,
                      保留低 16 位; 文档验证样例: 前导帧
                      0x55AA+0x0002+0xABDE=0x1018A -> sum=0x018A (已按本实现复核通过)
-                  4. 字节序假设: 帧内所有 u16 字段按小端组包 (低字节在前);
-                     待联调确认#3: 若 FPGA 实际为大端, 仅需将 put16_le/rd16_le
-                     改为大端实现, 其余代码不变
+                  4. 字节序假设: 帧内 u16 字段按小端组包 (低字节在前);
+                     例外: 下发帧头 0xAA55 按文档字节流直列大端读取
+                     (wire AA 55, 与上传帧头 0x55AA 小端 wire AA 55 相同,
+                     上下行靠方向区分); 待联调确认#3: 若 FPGA 实发小端
+                     55 AA, 需同步改扫描模式与 parse 的 rd16_be -> rd16_le
                   5. 待确认#2 握手时序: 按"发前导帧后连续时钟接收下发帧"
                      标准 SPI 主从模式实现, 前导发送与接收窗口分段隔离,
                      联调调整点集中
+                  6. 下发帧定位: 4 字节模式扫描 (帧头 0xAA55 文档字节流
+                     AA 55 + 帧长 0x0060 小端 60 00 -> AA 55 60 00),
+                     前导回声 (AA 55 02 00) 不误命中;
+                     候选解包失败从下一字节继续扫描, 容忍 FPGA 前导噪声偏移
 */
 
 /* 帧总长 = 帧头2 + 长度2 + 内容96 + 校验和2 + 帧尾2 = 104B */
@@ -51,19 +57,41 @@ static u16 rd16_le(const u8 *buf)
 }
 
 /*
+    @brief      : 大端读取 u16 (高字节在前)
+    @note       : 仅用于下发帧头 0xAA55: 文档帧头按字节流直列 (wire AA 55),
+                  与内容字段的小端组包不同 (待联调确认#3)
+    @param[in]  : buf 源地址 (至少 2B)
+    @param[out] : none
+    @retval     : 读出数值
+*/
+static u16 rd16_be(const u8 *buf)
+{
+    return (u16)(((u16)buf[0] << 8) | (u16)buf[1]);
+}
+
+/* 最近一次解析错误码 (protocol_last_err 查询, 成功路径清零) */
+static u8 g_proto_last_err = PROTO_ERR_NONE;
+
+/* 最近一次解包结果新鲜度: 1 = 本次周期成功, 0 = 失败周期 (旧数据) */
+static u8 g_proto_fresh = 0u;
+
+/*
     @brief      : 前导帧字节流 (小端, 共 10B)
-    @note       : 帧头 0x55AA -> AA 55; 长度 0x0002 -> 02 00;
-                  命令字 0xABDE -> DE AB; 校验和 0x018A -> 8A 01;
-                  帧尾 0xACBC -> BC AC;
-                  校验和复核: 0x55AA+0x0002+0xABDE=0x1018A -> 低16位 0x018A,
-                  与文档样例一致
+    @note       : 各字段由 app_config.h 协议宏按小端展开生成, 避免与宏值
+                  漂移; 校验和复核: 0x55AA+0x0002+0xABDE=0x1018A ->
+                  低16位 0x018A, 与文档样例一致
 */
 static const u8 preamble_frame[PROTO_PREAMBLE_LEN] = {
-    0xAA, 0x55,             /* 帧头 0x55AA (小端) */
-    0x02, 0x00,             /* 帧长度 0x0002 (内容 2B) */
-    0xDE, 0xAB,             /* 读命令字 0xABDE */
-    0x8A, 0x01,             /* 校验和 0x018A */
-    0xBC, 0xAC              /* 帧尾 0xACBC */
+    (u8)(PROTO_HEAD_UP & 0xFFu),          /* 帧头 0x55AA 低字节 */
+    (u8)(PROTO_HEAD_UP >> 8),             /* 帧头高字节 */
+    (u8)(0x0002u & 0xFFu),                /* 帧长度 0x0002 低字节 (内容 2B) */
+    (u8)(0x0002u >> 8),                   /* 帧长度高字节 */
+    (u8)(PROTO_PREAMBLE_WORD & 0xFFu),    /* 读命令字 0xABDE 低字节 */
+    (u8)(PROTO_PREAMBLE_WORD >> 8),       /* 读命令字高字节 */
+    (u8)(PROTO_PREAMBLE_SUM & 0xFFu),     /* 校验和 0x018A 低字节 */
+    (u8)(PROTO_PREAMBLE_SUM >> 8),        /* 校验和高字节 */
+    (u8)(PROTO_TAIL & 0xFFu),             /* 帧尾 0xACBC 低字节 */
+    (u8)(PROTO_TAIL >> 8)                 /* 帧尾高字节 */
 };
 
 /*
@@ -116,7 +144,8 @@ u16 protocol_build_upload(u8 *buf, const dev_measure_t *m, const power_state_t *
         return 0u;
     }
 
-    /* 帧头 0x55AA */
+    /* 帧头 0x55AA 小端 (wire AA 55, 与下发帧头 wire AA 55 相同,
+       上下行靠方向区分, 待联调确认#3) */
     put16_le(&buf[idx], PROTO_HEAD_UP);
     idx += 2u;
 
@@ -157,7 +186,8 @@ u16 protocol_build_upload(u8 *buf, const dev_measure_t *m, const power_state_t *
 /*
     @brief      : 下发帧解包 (FPGA -> MCU)
     @note       : 依次校验帧头 0xAA55 / 帧长度 / 校验和 / 帧尾, 全部通过后
-                  提取 15 组基准电压/电流与 3 个状态字
+                  提取 15 组基准电压/电流与 3 个状态字;
+                  每个失败路径记录对应错误码 (protocol_last_err 查询)
     @param[in]  : buf 接收到的完整帧缓冲
                   len 缓冲有效长度 (>= 帧总长 104B)
     @param[out] : thr 15 组设备基准阈值
@@ -169,32 +199,47 @@ u8 protocol_parse_down(const u8 *buf, u16 len, dev_threshold_t *thr, power_state
     u16 idx;
     u16 i;
 
+    /* 参数无效属编程错误路径, 不覆盖错误码 */
     if (buf == NULL || thr == NULL || ps == NULL) {
         return 0u;
     }
 
     if (len < FRAME_LEN_TOTAL) {
+        g_proto_last_err = PROTO_ERR_LEN;
+        TRACE_OUT(DEBUG_OUT, "protocol: frame truncated (len=%u)\r\n", len);
         return 0u;
     }
 
-    /* 帧头 0xAA55 */
-    if (rd16_le(&buf[0]) != PROTO_HEAD_DOWN) {
+    /* 帧头 0xAA55: 按文档字节流直列大端读取 (wire AA 55, 待联调确认#3,
+       若 FPGA 实发小端 55 AA 需同步改扫描模式与此处为 rd16_le) */
+    if (rd16_be(&buf[0]) != PROTO_HEAD_DOWN) {
+        g_proto_last_err = PROTO_ERR_NO_HEAD;
+        TRACE_OUT(DEBUG_OUT, "protocol: head mismatch 0x%04X\r\n", rd16_be(&buf[0]));
         return 0u;
     }
 
     /* 帧长度 = 内容字节数 0x0060 */
     if (rd16_le(&buf[2]) != FRAME_LEN_CONTENT) {
+        g_proto_last_err = PROTO_ERR_LEN;
+        TRACE_OUT(DEBUG_OUT, "protocol: length field mismatch 0x%04X\r\n", rd16_le(&buf[2]));
         return 0u;
     }
 
     /* 校验和: 帧头到校验和字段之前 (按帧定长 104B, 与入参 len 解耦,
        防止 len 大于帧长时把帧尾垃圾字节计入) */
     if (protocol_calc_sum(buf, FRAME_LEN_TOTAL - 4u) != rd16_le(&buf[FRAME_LEN_TOTAL - 4u])) {
+        g_proto_last_err = PROTO_ERR_SUM;
+        TRACE_OUT(DEBUG_OUT, "protocol: checksum mismatch calc=0x%04X rx=0x%04X\r\n",
+                  protocol_calc_sum(buf, FRAME_LEN_TOTAL - 4u),
+                  rd16_le(&buf[FRAME_LEN_TOTAL - 4u]));
         return 0u;
     }
 
     /* 帧尾 0xACBC */
     if (rd16_le(&buf[FRAME_LEN_TOTAL - 2u]) != PROTO_TAIL) {
+        g_proto_last_err = PROTO_ERR_TAIL;
+        TRACE_OUT(DEBUG_OUT, "protocol: tail mismatch 0x%04X\r\n",
+                  rd16_le(&buf[FRAME_LEN_TOTAL - 2u]));
         return 0u;
     }
 
@@ -216,6 +261,7 @@ u8 protocol_parse_down(const u8 *buf, u16 len, dev_threshold_t *thr, power_state
     idx += 2u;
     ps->alarm_state = rd16_le(&buf[idx]);
 
+    g_proto_last_err = PROTO_ERR_NONE;
     return 1u;
 }
 
@@ -229,7 +275,7 @@ u8 protocol_parse_down(const u8 *buf, u16 len, dev_threshold_t *thr, power_state
 void protocol_send_preamble(void)
 {
     bsp_spi_cs(BSP_SPI_CS_LOW);
-    bsp_spi_transfer((u8 *)preamble_frame, NULL, PROTO_PREAMBLE_LEN);
+    bsp_spi_transfer(preamble_frame, NULL, PROTO_PREAMBLE_LEN);
     bsp_spi_cs(BSP_SPI_CS_HIGH);
 }
 
@@ -249,55 +295,80 @@ static const u8 dummy_tx[FRAME_LEN_TOTAL] = {0};
                      第1段 发前导 10B (同时收回声);
                      第2段 发哑字节 104B 连续时钟收下发帧 (帧全长 104B,
                      若只发 96B 会少收帧尾 8B, 故取帧全长)
-                  2. 接收完成后在窗口内扫描下发帧头 0xAA55 (小端 55 AA);
-                     前导回声或 FPGA 引入的前导噪声字节不影响扫描定位
+                  2. 帧定位: 4 字节模式扫描 (帧头 0xAA55 文档字节流 AA 55
+                     + 帧长 0x0060 小端 60 00 -> AA 55 60 00); 前导回声为
+                     AA 55 02 00 不会误命中; 候选解包失败则从下一字节继续
+                     扫描, 容忍 FPGA 前导噪声或回声偏移, 直到窗口耗尽
                   3. 握手时序 (待确认#2) 的调整点集中在本函数两段传输
                      与扫描窗口, 不影响组包/解包逻辑
     @param[in]  : none
     @param[out] : none
-    @retval     : 1 = 收到并解包成功; 0 = 未找到帧头或校验失败
+    @retval     : 1 = 收到并解包成功; 0 = 未找到有效帧 (错误码经
+                  protocol_last_err() 查询)
 */
 u8 protocol_read_task(void)
 {
     u16 i;
-    u16 head_idx;
+    u8  candidate_found;
 
     /* 第1段: 发前导帧并接收回声 */
     bsp_spi_cs(BSP_SPI_CS_LOW);
-    bsp_spi_transfer((u8 *)preamble_frame, rx_buf, PROTO_PREAMBLE_LEN);
+    bsp_spi_transfer(preamble_frame, rx_buf, PROTO_PREAMBLE_LEN);
 
     /* 第2段: 连续时钟接收下发帧 (帧全长 104B) */
-    bsp_spi_transfer((u8 *)dummy_tx, &rx_buf[PROTO_PREAMBLE_LEN], FRAME_LEN_TOTAL);
+    bsp_spi_transfer(dummy_tx, &rx_buf[PROTO_PREAMBLE_LEN], FRAME_LEN_TOTAL);
     bsp_spi_cs(BSP_SPI_CS_HIGH);
 
-    /* 在接收窗口内扫描下发帧头 0xAA55 (小端字节序: 55 AA) */
-    head_idx = 0xFFFFu;
-    for (i = 0u; i + 1u < PROTO_RX_WIN_LEN; i++) {
-        if (rx_buf[i] == (u8)(PROTO_HEAD_DOWN & 0xFFu) &&
-            rx_buf[i + 1u] == (u8)(PROTO_HEAD_DOWN >> 8)) {
-            head_idx = i;
-            break;
+    /* 4 字节模式扫描: 帧头 0xAA55 文档字节流 AA 55 + 帧长 0x0060 小端
+       60 00 -> 模式 AA 55 60 00; 前导回声为 AA 55 02 00 不会误命中
+       (待联调确认#3: 若 FPGA 实发小端帧头 55 AA, 模式需改 55 AA 60 00);
+       边界保持 i+3 < PROTO_RX_WIN_LEN (即 i+4 <= 窗口长度) */
+    candidate_found = 0u;
+    for (i = 0u; i + 4u <= PROTO_RX_WIN_LEN; i++) {
+        if (rx_buf[i] == (u8)(PROTO_HEAD_DOWN >> 8) &&
+            rx_buf[i + 1u] == (u8)(PROTO_HEAD_DOWN & 0xFFu) &&
+            rx_buf[i + 2u] == (u8)(FRAME_LEN_CONTENT & 0xFFu) &&
+            rx_buf[i + 3u] == (u8)(FRAME_LEN_CONTENT >> 8)) {
+            candidate_found = 1u;
+
+            /* 候选处剩余字节须容纳完整帧, 否则视为噪声继续扫描 */
+            if (PROTO_RX_WIN_LEN - i < FRAME_LEN_TOTAL) {
+                continue;
+            }
+
+            /* 解包成功: 结果存模块静态区, 置新鲜度并返回 */
+            if (protocol_parse_down(&rx_buf[i], FRAME_LEN_TOTAL,
+                                    down_thr, &down_ps) != 0u) {
+                g_proto_fresh = 1u;
+                return 1u;
+            }
+            /* 候选校验失败 (错误码已记录): 从下一字节继续扫描 */
         }
     }
 
-    if (head_idx == 0xFFFFu) {
-        return 0u;
+    /* 窗口耗尽: 若从未出现候选记录 NO_HEAD, 否则保留最近一次失败码 */
+    if (candidate_found == 0u) {
+        g_proto_last_err = PROTO_ERR_NO_HEAD;
+        TRACE_OUT(DEBUG_OUT, "protocol: no down frame head in rx window\r\n");
     }
-
-    /* 解包并存入模块静态结果区 */
-    return protocol_parse_down(&rx_buf[head_idx], PROTO_RX_WIN_LEN - head_idx,
-                               down_thr, &down_ps);
+    g_proto_fresh = 0u;
+    return 0u;
 }
 
 /*
     @brief      : 读取 protocol_read_task() 最近一次解包结果
-    @note       : Task9 补充接口 (原 5 函数规格外), 供监控层轮询读取
+    @note       : Task9 补充接口 (原 5 函数规格外), 供监控层轮询读取;
+                  数据新鲜度语义: 失败周期后静态区仍为旧数据, 调用者必须
+                  依据 protocol_read_task() 返回值或 fresh 输出判断结果
+                  是否可采信
     @param[in]  : none
-    @param[out] : thr 15 组设备基准阈值 (可为 NULL 不取)
-                  ps  电源状态字 (可为 NULL 不取)
+    @param[out] : thr   15 组设备基准阈值 (可为 NULL 不取)
+                  ps    电源状态字 (可为 NULL 不取)
+                  fresh 新鲜度信号 (可为 NULL 不取): 1 = 本次周期成功解包,
+                        0 = 失败周期/从未成功 (静态区为旧数据)
     @retval     : none
 */
-void protocol_read_result(dev_threshold_t *thr, power_state_t *ps)
+void protocol_read_result(dev_threshold_t *thr, power_state_t *ps, u8 *fresh)
 {
     u16 i;
 
@@ -310,4 +381,21 @@ void protocol_read_result(dev_threshold_t *thr, power_state_t *ps)
     if (ps != NULL) {
         *ps = down_ps;
     }
+
+    if (fresh != NULL) {
+        *fresh = g_proto_fresh;
+    }
+}
+
+/*
+    @brief      : 查询最近一次解析错误码
+    @note       : 由 protocol_parse_down / protocol_read_task 记录;
+                  成功路径清零为 PROTO_ERR_NONE
+    @param[in]  : none
+    @param[out] : none
+    @retval     : 错误码 (PROTO_ERR_NONE / NO_HEAD / LEN / SUM / TAIL)
+*/
+u8 protocol_last_err(void)
+{
+    return g_proto_last_err;
 }

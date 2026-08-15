@@ -136,7 +136,7 @@ u8 bsp_spi_write_byte(u8 data)
     @retval     : none
     @note       : 片选由调用方通过 bsp_spi_cs 管理
 */
-void bsp_spi_transfer(u8 *tx, u8 *rx, u16 len)
+void bsp_spi_transfer(const u8 *tx, u8 *rx, u16 len)
 {
     u16 i;
 

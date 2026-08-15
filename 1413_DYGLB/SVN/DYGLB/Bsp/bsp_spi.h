@@ -22,6 +22,6 @@
 void bsp_spi_init(void);
 void bsp_spi_cs(u8 level);
 u8   bsp_spi_write_byte(u8 data);
-void bsp_spi_transfer(u8 *tx, u8 *rx, u16 len);
+void bsp_spi_transfer(const u8 *tx, u8 *rx, u16 len);
 
 #endif /* __BSP_SPI_H_ */
