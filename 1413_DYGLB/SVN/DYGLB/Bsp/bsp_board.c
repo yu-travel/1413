@@ -487,7 +487,7 @@ void bsp_board_init(void)
     GPIO_Init(GPIOA, &gpio_init);
 
     /* GPIOB: 13 路 MAC5048 FAULT 输入
-       注意: 跳过 PB1 (BOOT1, 硬件上电 BOOT 采样, 软件不操作) */
+       注意: 跳过 PB2 (BOOT1, F407 数据手册 BOOT1=PB2, 硬件上电 BOOT 采样, 软件不操作) */
     gpio_init.GPIO_Pin   = HWXJ3_FAULT_PIN | PD_FAULT_PIN   | KF1_FAULT_PIN |
                            HJJC1_FAULT_PIN | HJJC2_FAULT_PIN | HWXJ2_FAULT_PIN |
                            HWXJ1_FAULT_PIN | QGSJ_FAULT_PIN | SFXJ2_FAULT_PIN |

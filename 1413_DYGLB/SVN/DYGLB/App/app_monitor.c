@@ -1,6 +1,8 @@
 #include "app_monitor.h"
-#include "lc1258.h"
 #include "bsp_flash.h"
+#include "efuse.h"
+#include "lc1258.h"
+#include "xca4001.h"
 
 /*
     @brief      : 采集与告警 (App 层): 4 片 LC1258 轮询采集 + 物理量换算
@@ -16,8 +18,10 @@
                    4. 校准系数索引 = (设备ID-1)*3 + {0=V,1=I,2=T};
                     KF 无 T 槽 (adc_ain_t=0xFF), KF1/KF2 温度共用 KF T 槽系数
                    5. 告警: 阈值比较 (阈值=0 视为未配置不告警)
-                    + 硬件故障引脚 (低电平=故障, 5016 为 GOK/GOC)
-                    + FAULT 译码非 NORMAL; VCC_*_ALERT 只记 aux_alarm
+                    + 硬件故障信号 (低电平=故障): MAC5048 直读 FAULT 引脚,
+                    HQEF5016 经 efuse_is_gok_goc() 驱动, 4 轨 XCA4001 ALERT
+                    经 xca4001_alert_active() 驱动 (只记 aux_alarm)
+                    + FAULT 译码非 NORMAL
                    6. 电压阈值语义: vol_mv/cur_ma 为绝对值, 与 FPGA 下发
                     基准阈值直接比较 (大于即告警)
 */
@@ -132,8 +136,8 @@ static u8 monitor_fault_decode(float vadc)
 /*
     @brief      : 单设备原始码 → 物理量 (换算 + 校准)
     @note       : 电压/电流由 g_dev_map[].adc_ain_v/i 取码;
-                  温度: 普通设备用 adc_ain_t, KF 走 g_t_map 子表
-                  (AIN15=KF1 主槽, AIN6=KF2), KF1/KF2 共用 KF T 槽系数
+                  温度: 普通设备用 adc_ain_t, KF 遍历 g_t_map 子表
+                  (sub==1=KF1, sub==2=KF2), KF1/KF2 共用 KF T 槽系数
     @param[in]  : id  设备 ID (1~15)
     @param[out] : none
     @retval     : none
@@ -191,20 +195,28 @@ static void monitor_convert_device(u16 id)
             g_monitor.temp_c[id] = physical;
         }
     } else if (id == DEV_KF) {
-        /* KF 双温度点 (g_t_map 子表), 共用 KF 的 T 槽校准系数:
-           AIN15 = KF1 → temp_c[DEV_KF] 主槽 + kf1_temp_c; AIN6 = KF2 → kf2_temp_c */
-        if ((s_raw_t_valid & MON_ALARM_BIT(15u)) != 0u) {
-            vadc = monitor_raw_to_vadc(s_raw_t[15]);
+        /* KF 双温度点: 遍历 g_t_map 找 sub==1 (KF1) / sub==2 (KF2) 的 AIN 取码
+           (不硬编码通道号, 通道由 bsp_board.c 的 g_t_map 表唯一指定),
+           KF 无独立 T 槽 (adc_ain_t=0xFF), KF1/KF2 共用 KF 的 T 槽校准系数:
+           KF1 → temp_c[DEV_KF] 主槽 + kf1_temp_c; KF2 → kf2_temp_c */
+        u8 i2;
+
+        for (i2 = 0u; i2 < (u8)ARRAY_SIZE(g_t_map); i2++) {
+            if (g_t_map[i2].dev != DEV_KF || g_t_map[i2].sub == 0u) {
+                continue;
+            }
+            if ((s_raw_t_valid & MON_ALARM_BIT(i2)) == 0u) {
+                continue;
+            }
+            vadc = monitor_raw_to_vadc(s_raw_t[i2]);
             physical = (vadc * MON_COEF_TEMP_5048 + MON_T_OFFSET_5048) / MON_T_SLOPE_5048;
             physical = s_k[cal_idx + 2u] * physical + s_b[cal_idx + 2u];
-            g_monitor.temp_c[id] = physical;
-            g_monitor.kf1_temp_c = physical;
-        }
-        if ((s_raw_t_valid & MON_ALARM_BIT(6u)) != 0u) {
-            vadc = monitor_raw_to_vadc(s_raw_t[6]);
-            physical = (vadc * MON_COEF_TEMP_5048 + MON_T_OFFSET_5048) / MON_T_SLOPE_5048;
-            physical = s_k[cal_idx + 2u] * physical + s_b[cal_idx + 2u];
-            g_monitor.kf2_temp_c = physical;
+            if (g_t_map[i2].sub == 1u) {
+                g_monitor.temp_c[id] = physical;    /* KF1 主槽 */
+                g_monitor.kf1_temp_c = physical;
+            } else {
+                g_monitor.kf2_temp_c = physical;
+            }
         }
     }
 }
@@ -264,14 +276,16 @@ static void monitor_convert_aux(void)
     @brief      : 15 路告警判定
     @note       : 1. 阈值比较: vol_mv > ref_vol_mv 或 cur_ma > ref_cur_ma
                     (阈值为 0 视为未配置不告警)
-                   2. 硬件信号: g_dev_map[].fault_port[] 低电平 = 故障
-                    (5016 的 fault_port 是 GOK/GOC, 同约定)
+                   2. 硬件信号 (低电平=故障): MAC5048 直读 g_dev_map[].fault_port[]
+                    (FAULT 引脚, 设计约定); HQEF5016 (DYGY/GSDJ) 经
+                    efuse_is_gok_goc() 驱动 (handle 由 dev_map 行构造,
+                    fault_port[0]=GOK fault_port[1]=GOC, 见 board_map.h)
                    3. FAULT 译码: DYGY/GSDJ 类型非 NORMAL → 置对应告警位
                    4. ADC 采集通道失效: CH0/CH1 ID 校验失败置
                     s_adc_fault_mask, 全 15 路对应物理量为假 0,
                     置告警位防 FPGA 误信 (CH2 温度/CH3 辅助失效不置)
                    5. VCC_*_ALERT 4 路不映射到 15 路 (协议 bit0 预留),
-                     记录到 aux_alarm 位0~3
+                    经 xca4001_alert_active() 驱动读取, 记录到 aux_alarm 位0~3
     @param[in]  : none
     @param[out] : none
     @retval     : none
@@ -295,11 +309,29 @@ static void monitor_alarm_eval(void)
             fault = 1u;
         }
 
-        /* 硬件故障引脚 (低电平=故障; 5016 为 GOK/GOC) */
-        for (j = 0u; j < dev->fault_cnt; j++) {
-            if (dev->fault_port[j] != 0 &&
-                GPIO_ReadInputDataBit(dev->fault_port[j], dev->fault_pin[j]) == Bit_RESET) {
+        /* 硬件故障信号 (低电平=故障) */
+        if (dev->chip_type == CHIP_TYPE_HQEF5016) {
+            /* HQEF5016 (DYGY/GSDJ): GOK/GOC 经 Dev/efuse 驱动读取,
+               按 board_map.h 约定 handle 由 dev_map 行局部构造:
+               fault_port[0]/fault_pin[0]=GOK, fault_port[1]/fault_pin[1]=GOC */
+            efuse_handle_t efuse_h;
+
+            efuse_h.en_port  = dev->en_port;
+            efuse_h.en_pin   = dev->en_pin;
+            efuse_h.gok_port = dev->fault_port[0];
+            efuse_h.gok_pin  = dev->fault_pin[0];
+            efuse_h.goc_port = dev->fault_port[1];
+            efuse_h.goc_pin  = dev->fault_pin[1];
+            if (efuse_is_gok_goc(&efuse_h) != 0u) {
                 fault = 1u;
+            }
+        } else {
+            /* MAC5048: 直读 FAULT 引脚 (设计约定, 不经过 efuse 驱动) */
+            for (j = 0u; j < dev->fault_cnt; j++) {
+                if (dev->fault_port[j] != 0 &&
+                    GPIO_ReadInputDataBit(dev->fault_port[j], dev->fault_pin[j]) == Bit_RESET) {
+                    fault = 1u;
+                }
             }
         }
 
@@ -330,19 +362,22 @@ static void monitor_alarm_eval(void)
 
     /* 4 轨 XCA4001 ALERT 辅助告警 (低电平=告警, 待联调确认极性),
        不进 15 路告警字, 位序与 rail_cur_a 一致 (CH3 AIN0~3 = 3V3/12V0/5V0/28V0):
-       bit0=3V3 bit1=12V0 bit2=5V0 bit3=28V0 */
+       bit0=3V3 bit1=12V0 bit2=5V0 bit3=28V0
+       经 Dev/xca4001 驱动读取, handle 用 board_map.h 引脚宏局部构造
+       (RST 引脚传对应 RST 宏仅作 handle 完整性, 此处只读 ALERT) */
+    xca4001_handle_t xca_h[4] = {
+        { VCC_3V3_RST_PORT,  VCC_3V3_RST_PIN,  VCC_3V3_ALERT_PORT,  VCC_3V3_ALERT_PIN  },  /* bit0 3V3  */
+        { VCC_12V0_RST_PORT, VCC_12V0_RST_PIN, VCC_12V0_ALERT_PORT, VCC_12V0_ALERT_PIN },  /* bit1 12V0 */
+        { VCC_5V0_RST_PORT,  VCC_5V0_RST_PIN,  VCC_5V0_ALERT_PORT,  VCC_5V0_ALERT_PIN  },  /* bit2 5V0  */
+        { VCC_28V0_RST_PORT, VCC_28V0_RST_PIN, VCC_28V0_ALERT_PORT, VCC_28V0_ALERT_PIN },  /* bit3 28V0 */
+    };
+    u8 i2;
+
     g_monitor.aux_alarm = 0u;
-    if (GPIO_ReadInputDataBit(VCC_3V3_ALERT_PORT, VCC_3V3_ALERT_PIN) == Bit_RESET) {
-        g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(0u);
-    }
-    if (GPIO_ReadInputDataBit(VCC_12V0_ALERT_PORT, VCC_12V0_ALERT_PIN) == Bit_RESET) {
-        g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(1u);
-    }
-    if (GPIO_ReadInputDataBit(VCC_5V0_ALERT_PORT, VCC_5V0_ALERT_PIN) == Bit_RESET) {
-        g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(2u);
-    }
-    if (GPIO_ReadInputDataBit(VCC_28V0_ALERT_PORT, VCC_28V0_ALERT_PIN) == Bit_RESET) {
-        g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(3u);
+    for (i2 = 0u; i2 < 4u; i2++) {
+        if (xca4001_alert_active(&xca_h[i2]) != 0u) {
+            g_monitor.aux_alarm |= (u8)MON_ALARM_BIT(i2);
+        }
     }
 }
 

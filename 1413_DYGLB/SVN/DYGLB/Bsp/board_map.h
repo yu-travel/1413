@@ -179,7 +179,7 @@
 #define PWR_SWCLK_PIN       GPIO_Pin_14
 
 #define PWR_BOOT1_PORT      GPIOB
-#define PWR_BOOT1_PIN       GPIO_Pin_1
+#define PWR_BOOT1_PIN       GPIO_Pin_2
 
 #define OSC32_IN_PORT       GPIOC
 #define OSC32_IN_PIN        GPIO_Pin_14
