@@ -520,6 +520,16 @@
               <FilePath>..\..\Bsp\bsp_board.h</FilePath>
             </File>
             <File>
+              <FileName>bsp_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Bsp\bsp_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_spi.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Bsp\bsp_spi.h</FilePath>
+            </File>
+            <File>
               <FileName>delay.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\Bsp\delay.c</FilePath>
