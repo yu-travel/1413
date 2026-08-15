@@ -283,10 +283,10 @@ typedef struct {
 void efuse_on(efuse_handle_t *h);
 void efuse_off(efuse_handle_t *h);
 void efuse_clear_latch(efuse_handle_t *h);   /* EN低100us→高 软启动并清锁存 */
-u8   efuse_is_fault(efuse_handle_t *h);      /* 读FAULT/GOK */
+u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048恒返回0勿用于故障判定 */
 ```
 
-- [ ] **Step 2:** xca4001：`xca4001_set_mode(rst, latch|auto)`、`xca4001_clear_latch(rst)`（≥100ns 低脉冲）、`xca4001_alert_read()`
+- [ ] **Step 2:** xca4001：`xca4001_set_latch_mode(h)`/`xca4001_set_auto_mode(h)`、`xca4001_clear_latch(h)`（≥100ns 低脉冲, 结束后回锁存模式）、`xca4001_alert_active(h)`
 - [ ] **Step 3:** 编译验证；Commit
 
 ### Task 9: App 层 —— app_protocol.c/h（协议）
