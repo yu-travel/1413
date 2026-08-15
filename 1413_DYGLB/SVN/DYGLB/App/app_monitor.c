@@ -13,8 +13,8 @@
                    2. monitor_convert_all() 每 100ms 调用:
                     码 → V_adc → 芯片类型分派换算 → Flash k/b 校准
                     → g_monitor; 再执行 FAULT 译码与告警判定
-                   3. 电压/电流经校准后转换为 mV/mA 取整上报协议;
-                    温度保留 float 本地监测
+                    3. 电压/电流经校准后 ×1000 截断取整为 mV/mA 上报协议;
+                     温度保留 float 本地监测
                    4. 校准系数索引 = (设备ID-1)*3 + {0=V,1=I,2=T};
                     KF 无 T 槽 (adc_ain_t=0xFF), KF1/KF2 温度共用 KF T 槽系数
                    5. 告警: 阈值比较 (阈值=0 视为未配置不告警)
@@ -93,7 +93,8 @@ static float monitor_raw_to_vadc(s32 code)
 }
 
 /*
-    @brief      : float → u16 限幅取整 (负值归 0, 超上限截断, 四舍五入)
+    @brief      : float → u16 截断取整 (负值归 0, 超上限截断, 直接舍去小数)
+    @note       : 上报 FPGA 的数据约定 ×1000 后截断小数 (不四舍五入)
     @param[in]  : val  待转换值
     @param[out] : none
     @retval     : u16 结果
@@ -103,11 +104,10 @@ static u16 monitor_float_to_u16(float val)
     if (val <= 0.0f) {
         return 0u;
     }
-    val += 0.5f;
     if (val >= 65535.0f) {
         return 65535u;
     }
-    return (u16)val;
+    return (u16)val;    /* 截断小数 */
 }
 
 /*
