@@ -18,6 +18,7 @@
 *.dbgconf
 JLinkLog.txt
 JLinkSettings.ini
+build_log.txt
 Objects/
 Listings/
 DebugConfig/
