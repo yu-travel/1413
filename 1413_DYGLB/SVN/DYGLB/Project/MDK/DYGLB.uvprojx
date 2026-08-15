@@ -510,6 +510,16 @@
               <FilePath>..\..\Bsp\board_map.h</FilePath>
             </File>
             <File>
+              <FileName>bsp_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Bsp\bsp_board.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_board.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\Bsp\bsp_board.h</FilePath>
+            </File>
+            <File>
               <FileName>delay.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\Bsp\delay.c</FilePath>
