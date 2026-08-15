@@ -59,7 +59,7 @@
 #define TASK_CONVERT_MS      100         /* 100ms 码值换算+校准 + 告警判定 */
 #define TASK_UPLOAD_MS       100         /* 100ms 上传帧组包发送 (MCU->FPGA) */
 #define TASK_PROTO_MS        200         /* 200ms 下发帧收发与指令消费 (FPGA->MCU) */
-#define TASK_LED_MS          500         /* 500ms LED 心跳翻转 */
+#define TASK_HEARTBEAT_MS    1000        /* 1000ms RTT 心跳日志 (新板无调试 LED) */
 
 /* ---------------- App 共享类型 ---------------- */
 

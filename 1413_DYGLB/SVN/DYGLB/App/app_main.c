@@ -30,18 +30,12 @@
                   由 FPGA 每次上电重发 (待确认#5 已定)
 */
 
-/* LED 心跳引脚 (待确认): 沿用旧工程调试 LED GPIOD_Pin_2;
-   注意: board_map.h 中 PD2 已被映射为 HWXJ2_PWR_EN (28V_HWXJ2 使能脚),
-   二者冲突, 若实际硬件 LED 不在 PD2, 联调时只需修改此处两个宏 */
-#define APP_LED_PORT    GPIOD
-#define APP_LED_PIN     GPIO_Pin_2
-
 /* MultiTimer 周期任务句柄 (静态分配) */
 static MultiTimer s_timer_monitor;
 static MultiTimer s_timer_convert;
 static MultiTimer s_timer_upload;
 static MultiTimer s_timer_proto;
-static MultiTimer s_timer_led;
+static MultiTimer s_timer_heartbeat;
 
 /* 上传帧发送缓冲与 15 组测量值 (静态分配不进栈) */
 static u8            s_tx_buf[PROTO_TX_BUF_LEN];
@@ -185,28 +179,25 @@ static void task_proto_cb(MultiTimer *timer, void *user_data)
 }
 
 /*
-    @brief      : 500ms LED 心跳任务回调: 翻转 LED 指示运行
-    @note       : 重注册自身实现 500ms 周期; 原 softtimer 内置 blink
-                  已移除 (避免同引脚双定时器重复翻转), 由本任务统一管理
+    @brief      : 1000ms RTT 心跳任务回调: 输出一条心跳日志指示运行
+    @note       : 新板无调试 LED (PD2 为 HWXJ2_PWR_EN 电源使能,
+                  不可当 LED 用), 改由 RTT 日志心跳替代;
+                  重注册自身实现 1000ms 周期, 每秒一行不刷屏
     @param[in]  : timer     MultiTimer 句柄 (重注册用)
                   user_data 未使用
     @param[out] : none
     @retval     : none
 */
-static void task_led_cb(MultiTimer *timer, void *user_data)
+static void task_heartbeat_cb(MultiTimer *timer, void *user_data)
 {
-    static u8 led_on = 0u;
+    static u32 hb_count = 0u;
 
     (void)user_data;
 
-    led_on = (led_on == 0u) ? 1u : 0u;
-    if (led_on != 0u) {
-        GPIO_SetBits(APP_LED_PORT, APP_LED_PIN);
-    } else {
-        GPIO_ResetBits(APP_LED_PORT, APP_LED_PIN);
-    }
+    hb_count++;
+    TRACE_OUT(DEBUG_OUT, "<DYGLB> hb tick %u\r\n", hb_count);
 
-    softtimer_start(timer, TASK_LED_MS, task_led_cb, timer);
+    softtimer_start(timer, TASK_HEARTBEAT_MS, task_heartbeat_cb, timer);
 }
 
 /*
@@ -219,11 +210,11 @@ static void task_led_cb(MultiTimer *timer, void *user_data)
 */
 void app_tasks_init(void)
 {
-    softtimer_start(&s_timer_monitor, TASK_MONITOR_MS, task_monitor_cb, &s_timer_monitor);
-    softtimer_start(&s_timer_convert, TASK_CONVERT_MS, task_convert_cb, &s_timer_convert);
-    softtimer_start(&s_timer_upload,  TASK_UPLOAD_MS,  task_upload_cb,  &s_timer_upload);
-    softtimer_start(&s_timer_proto,   TASK_PROTO_MS,   task_proto_cb,   &s_timer_proto);
-    softtimer_start(&s_timer_led,     TASK_LED_MS,     task_led_cb,     &s_timer_led);
+    softtimer_start(&s_timer_monitor,   TASK_MONITOR_MS,   task_monitor_cb,   &s_timer_monitor);
+    softtimer_start(&s_timer_convert,   TASK_CONVERT_MS,   task_convert_cb,   &s_timer_convert);
+    softtimer_start(&s_timer_upload,    TASK_UPLOAD_MS,    task_upload_cb,    &s_timer_upload);
+    softtimer_start(&s_timer_proto,     TASK_PROTO_MS,     task_proto_cb,     &s_timer_proto);
+    softtimer_start(&s_timer_heartbeat, TASK_HEARTBEAT_MS, task_heartbeat_cb, &s_timer_heartbeat);
 }
 
 /*
