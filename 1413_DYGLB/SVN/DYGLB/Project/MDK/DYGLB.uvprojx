@@ -505,9 +505,19 @@
               <FilePath>..\..\Dev\efuse.h</FilePath>
             </File>
             <File>
+              <FileName>efuse.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Dev\efuse.c</FilePath>
+            </File>
+            <File>
               <FileName>xca4001.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\Dev\xca4001.h</FilePath>
+            </File>
+            <File>
+              <FileName>xca4001.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Dev\xca4001.c</FilePath>
             </File>
           </Files>
         </Group>

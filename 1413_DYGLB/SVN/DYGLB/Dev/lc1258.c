@@ -65,7 +65,7 @@ static void lc1258_cs_setup_delay(void)
     @brief      : 初始化 LC1258
     @note       : 流程: RST 低脉冲复位 (≥2 个系统时钟, 保守 100us) → 释放 →
                   读 ID 寄存器校验 == 0x8B → 写 CONFIG0=0x0A (Auto-Scan + 状态字节),
-                  CONFIG1=0x01 (Standby + 7.813kSPS 高精度),
+                   CONFIG1=0x01 (Auto-Scan 每通道 6.168kSPS),
                   MUXSG0/MUXSG1=0xFF (16 路单端通道全部开启);
                   复位后寄存器本为默认值, 重写一次保证确定性
     @param[in]  : h    LC1258 实例句柄
@@ -211,7 +211,7 @@ u8 lc1258_data_ready(lc1258_handle_t *h)
     @note       : 调用前须由上层轮询 lc1258_data_ready() 确认 DRDY 拉低;
                   CS=0 → 发命令 0x30 (MUL 必须=1) → 随后 32 个 SCLK 读回
                   [1 字节状态][3 字节 24bit ADC 数据]; 数据为二进制补码 MSB 先行;
-                  RDATA 带缓冲, 新转换不会覆盖旧读数;
+                  读取操作不影响进行中的转换 (数据手册 RDATA 缓冲语义);
                   状态字节含 NEW/OVF/SUPPLY/CHID, 此处仅取 CHID 返回, 其余位丢弃,
                   NEW/OVF 监测由上层通过轮询 DRDY 保证数据新鲜
                   (Auto-Scan 模式下未及时读会被下一轮转换覆盖);
