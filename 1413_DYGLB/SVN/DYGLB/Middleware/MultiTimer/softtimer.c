@@ -5,8 +5,8 @@
     @date       : 24/07/01
 **************************************************************************************************************
 */
-#include "timer.h"
-#include "iwdg.h"
+#include "bsp_timer.h"
+#include "bsp_iwdg.h"
 #include "softtimer.h"
 #include "main.h"
 
@@ -19,7 +19,7 @@ void blink_timer_start(void);
 
 uint64_t PlatformTicksGetFunc(void)
 {
-    return timer_getms_count();
+    return bsp_timer_getms_count();
 }
 
 
@@ -51,7 +51,7 @@ void blinkled_callback(_time_t* timer, void* userData)
     else
         GPIO_ResetBits(GPIOD,GPIO_Pin_2);
         
-    IWDG_Feed();    // 每隔500ms喂狗一次
+    bsp_iwdg_feed();    // 每隔500ms喂狗一次
     blink_timer_start();    // 开启下一个周期
 }
 void blink_timer_start(void)
