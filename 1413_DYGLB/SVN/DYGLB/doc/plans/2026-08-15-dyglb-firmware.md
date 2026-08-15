@@ -320,21 +320,22 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 - [ ] **Step 4:** 告警判断：V/I > FPGA 下发基准阈值 → 告警位；FAULT/GOK/GOC/ALERT 硬件信号并入告警位
 - [ ] **Step 5:** 编译验证；Commit
 
-### Task 11: App 层 —— app_power.c/h（电源控制业务）
+### Task 11: App 层 —— app_power.c/h（电源控制业务）✅ 已完成
 
 **Files:** 新建 `App/app_power.c/h`
 
-- [ ] **Step 1:** `power_apply_default()`：上电默认全关（无 EEPROM）；FPGA 下发帧携带"电源开关默认状态"字段时按帧配置（见协议 §1.3）
-- [ ] **Step 2:** `power_handle_cmd()`：处理 FPGA 下发开关指令（开→EN 高；关→EN 低；状态翻转时自动清 MAC5048 锁存）
-- [ ] **Step 3:** 限流配置 `power_set_limit(dev, i_limit_mA)`：换算 `V_CLREF = I × (0.09 或 0.02)` → `D = V_CLREF/2.5×65536` → `gda6641_write_input` 缓存 15 路 → `gda6641_update_all` 同步刷新
-- [ ] **Step 4:** 故障恢复策略：默认"MCU 只上报告警，开关/清锁存由 FPGA 指令驱动"；XCA4001 锁存清除用 ≥100ns RESET 低脉冲（预留自动恢复开关）
-- [ ] **Step 5:** 编译验证；Commit
+- [x] **Step 1:** `power_init()`：上电默认全关（无 EEPROM）+ 4 片 DAC 初始化 + 15 路默认限流(DEFAULT_I_LIMIT_MA=0 关断式)写入并 LDAC 刷新
+- [x] **Step 2:** `power_apply_state(switch_state)`：FPGA 下发开关指令处理（开→先清锁存再 EN 高；关→EN 低；边沿检测，无变化不动作）
+- [x] **Step 3:** 限流配置 `power_set_limit(id, i_limit_mA)`：换算 `V_CLREF = I × (0.09 或 0.02)` → `D = V_CLREF/2.5×65536` → `gda6641_write_input` 缓存 → `power_flush_limits()` 4 片 `gda6641_update_all` 同步刷新
+- [x] **Step 4:** 故障恢复策略：默认"MCU 只上报告警，开关/清锁存由 FPGA 指令驱动"
+- [x] **Step 5:** 编译验证；Commit
+- [ ] **遗留（Task 12 接线）:** `default_state` 字段消费（FPGA 下发默认状态按帧配置）；先 flush 限流再 apply 开关状态的顺序约定
 
 ### Task 12: App 层 —— app_main.c（主流程集成）
 
 **Files:** 新建 `App/app_main.c/h`；删除 `User/main.c`
 
-- [ ] **Step 1:** 主流程：NVIC 分组 → delay_init → bsp_board_init → usart/RTT → bsp_spi_init → bsp_timer_init → softtimer_init → iwdg_init → Dev 初始化（4 DAC + 4 ADC ID 校验）→ EEPROM/校准读取 → power_apply_default → 注册 MultiTimer 任务（10ms 故障扫描 / 100ms 采集 / 100ms 限流刷新 / 周期协议收发）
+- [ ] **Step 1:** 主流程：NVIC 分组 → delay_init → bsp_board_init → usart/RTT → bsp_spi_init → bsp_timer_init → softtimer_init → iwdg_init → power_init（DAC 初始化+默认限流）→ monitor_init（4 ADC ID 校验+start+校准读取）→ 注册 MultiTimer 任务（1ms monitor_task / 100ms monitor_convert_all / 周期协议收发 + FPGA 下发指令消费：先 power_set_limit+flush 再 power_apply_state、default_state 按帧配置）
 - [ ] **Step 2:** 主循环：`softtimer_loop(); bsp_iwdg_feed();`
 - [ ] **Step 3:** Keil 全量 Rebuild 0 Error 0 Warning；Commit
 
