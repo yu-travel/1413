@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: 执行时使用 superpowers:subagent-driven-development 或 superpowers:executing-plans 逐任务实施。步骤使用 `- [ ]` 复选框跟踪。
 
+> **实施状态:** Task 1~12 已完成（2026-08-16，全部推送 main 分支，Keil Rebuild 0 Error 0 Warning）；Task 13 为硬件联调清单，待实板执行。
+
 **Goal:** 按 App 业务层 → Dev 设备抽象层 → Bsp 板级支撑层 → FWLIB 芯片原厂库四层结构，重写 DYGLB 电源管理板固件（15 路电源监控 + 限流控制 + FPGA SPI 协议）。
 
 **Architecture:** 顶层重建 `App/`、`Dev/`、`Bsp/` 三个目录；`FWLIB`（ST 标准库）、`Core`、`Middleware`、`Utilities` 复用不动；旧代码（AD7606、AD5542、control_Dev、transf_jkkzb 及旧协议）全部移除。GDA6641 与 LC1258 均采用 GPIO 位操作模拟时序，SPI1（10MHz 主机）与 FPGA 通信。
@@ -127,21 +129,21 @@ DYGLB/
 
 ## 三、任务分解（每任务结束需 Keil 编译 0 Error 0 Warning）
 
-### Task 1: 工程骨架重建
+### Task 1: 工程骨架重建 ✅ 已完成
 
 **Files:** 修改 `Project/MDK/DYGLB.uvprojx`；新建 `App/`、`Dev/`、`Bsp/` 目录
 
-- [ ] **Step 1:** Keil 工程新建分组 APP/DEV/BSP，移除旧文件（`AD7606_Driver.c`、`ad5542_driver.c`、`control_Dev.c`、`transf_jkkzb.c`、`mac5048.c`、`myiic.c`、`at24cxx.c`、`User/*`、`System/*`、`Hardware/BSP/timer.c`、`iwdg.c` 暂留但移除编译）
-- [ ] **Step 2:** 将 `System/delay`、`System/sys`、`System/usart`、`Hardware/BSP/timer.c`、`Hardware/BSP/iwdg.c` 迁移到 `Bsp/`，改 include 路径
-- [ ] **Step 3:** 新建 `App/`、`Dev/`、`Bsp/` 下的空模块骨架（仅头文件 + 空函数）
-- [ ] **Step 4:** 修改 `main.c` 为最小空壳（仅时钟 + delay_init + LED 闪烁），确保编译通过
-- [ ] **Step 5:** 编译验证：Keil Rebuild 0 Error；Commit
+- [x] **Step 1:** Keil 工程新建分组 APP/DEV/BSP，移除旧文件（`AD7606_Driver.c`、`ad5542_driver.c`、`control_Dev.c`、`transf_jkkzb.c`、`mac5048.c`、`myiic.c`、`at24cxx.c`、`User/*`、`System/*`、`Hardware/BSP/timer.c`、`iwdg.c` 暂留但移除编译）
+- [x] **Step 2:** 将 `System/delay`、`System/sys`、`System/usart`、`Hardware/BSP/timer.c`、`Hardware/BSP/iwdg.c` 迁移到 `Bsp/`，改 include 路径
+- [x] **Step 3:** 新建 `App/`、`Dev/`、`Bsp/` 下的空模块骨架（仅头文件 + 空函数）
+- [x] **Step 4:** 修改 `main.c` 为最小空壳（仅时钟 + delay_init + LED 闪烁），确保编译通过
+- [x] **Step 5:** 编译验证：Keil Rebuild 0 Error；Commit
 
-### Task 2: BSP 层 —— board_map.h（引脚定义总表）
+### Task 2: BSP 层 —— board_map.h（引脚定义总表）✅ 已完成
 
 **Files:** 新建 `Bsp/board_map.h`
 
-- [ ] **Step 1:** 按 doc 定义全部引脚宏（21 路故障输入、15 路 EN 输出、4 路 XCA4001 RESET/ALERT、DAC_CH0~3 引脚组、ADC_CH0~3 引脚组、SPI/UART AF、SWD 保留引脚），格式遵循现有 mac5048.h 风格，例如：
+- [x] **Step 1:** 按 doc 定义全部引脚宏（21 路故障输入、15 路 EN 输出、4 路 XCA4001 RESET/ALERT、DAC_CH0~3 引脚组、ADC_CH0~3 引脚组、SPI/UART AF、SWD 保留引脚），格式遵循现有 mac5048.h 风格，例如：
 
 ```c
 #define KF_PWR_EN_PORT      GPIOD
@@ -154,7 +156,7 @@ DYGLB/
 /* ...4组 DAC 共 28 引脚、4组 ADC 共 28 引脚... */
 ```
 
-- [ ] **Step 2:** 定义设备枚举与映射表：
+- [x] **Step 2:** 定义设备枚举与映射表：
 
 ```c
 typedef enum {
@@ -188,23 +190,23 @@ typedef gda6641_pin_t gda6641_handle_t;
 typedef lc1258_pin_t  lc1258_handle_t;
 ```
 
-- [ ] **Step 3:** 定义 4 片 DAC、4 片 ADC 的 handle 引脚常量表（`DAC_CH0_SCLK_PORT` 等宏组成的结构体常量）
-- [ ] **Step 4:** 编译验证；Commit
+- [x] **Step 3:** 定义 4 片 DAC、4 片 ADC 的 handle 引脚常量表（`DAC_CH0_SCLK_PORT` 等宏组成的结构体常量）
+- [x] **Step 4:** 编译验证；Commit
 
-### Task 3: BSP 层 —— bsp_board.c/h（板级初始化）
+### Task 3: BSP 层 —— bsp_board.c/h（板级初始化）✅ 已完成
 
 **Files:** 新建 `Bsp/bsp_board.c/h`
 
-- [ ] **Step 1:** `bsp_board_init()` 实现：GPIOA~PI 时钟、JTAG 禁用保留 SWD（`SWJ_CFG_JTAGDISABLE`）、15 路 EN 推挽输出（初始输出低，全部关断）、21 路故障输入（上拉）、4 路 XCA4001 RESET 输出高（锁存模式）、DAC/ADC 引脚初始化（SCLK/SYNC/DIN/LDAC/POR/CLR 输出、SDO/DOUT 输入）、SPI1/USART1 AF 引脚
-- [ ] **Step 2:** 声明 4 个 `lc1258_handle_t`、4 个 `gda6641_handle_t` 常量（`const`，用 board_map.h 引脚宏填充）
-- [ ] **Step 3:** 编译验证；Commit
+- [x] **Step 1:** `bsp_board_init()` 实现：GPIOA~PI 时钟、JTAG 禁用保留 SWD（`SWJ_CFG_JTAGDISABLE`）、15 路 EN 推挽输出（初始输出低，全部关断）、21 路故障输入（上拉）、4 路 XCA4001 RESET 输出高（锁存模式）、DAC/ADC 引脚初始化（SCLK/SYNC/DIN/LDAC/POR/CLR 输出、SDO/DOUT 输入）、SPI1/USART1 AF 引脚
+- [x] **Step 2:** 声明 4 个 `lc1258_handle_t`、4 个 `gda6641_handle_t` 常量（`const`，用 board_map.h 引脚宏填充）
+- [x] **Step 3:** 编译验证；Commit
 
-### Task 4: BSP 层 —— bsp_spi.c（FPGA SPI 主机）
+### Task 4: BSP 层 —— bsp_spi.c（FPGA SPI 主机）✅ 已完成
 
 **Files:** 新建 `Bsp/bsp_spi.c/h`（复用 FWLIB spi）
 
-- [ ] **Step 1:** SPI1 初始化：主机、CPOL=0/CPHA=0、预分频 /8 → 10.5MHz（10MHz 配置宏，待确认后调）、8bit、MSB；PA4 作 GPIO 片选
-- [ ] **Step 2:** 接口：
+- [x] **Step 1:** SPI1 初始化：主机、CPOL=0/CPHA=0、预分频 /8 → 10.5MHz（10MHz 配置宏，待确认后调）、8bit、MSB；PA4 作 GPIO 片选
+- [x] **Step 2:** 接口：
 
 ```c
 void bsp_spi_init(void);
@@ -213,24 +215,24 @@ u8   bsp_spi_write_byte(u8 data);   /* 全双工收发1字节 */
 void bsp_spi_transfer(u8 *tx, u8 *rx, u16 len);
 ```
 
-- [ ] **Step 3:** 编译验证；Commit
+- [x] **Step 3:** 编译验证；Commit
 
-### Task 5: BSP 层 —— bsp_timer/iwdg/eeprom/flash/it
+### Task 5: BSP 层 —— bsp_timer/iwdg/eeprom/flash/it ✅ 已完成
 
 **Files:** 迁移+改造 `Bsp/bsp_timer.c`、`bsp_iwdg.c`、`bsp_flash.c`、`bsp_it.c`（EEPROM 已取消，见待确认#5）
 
-- [ ] **Step 1:** TIM2 1kHz 软定时 tick（供 softtimer），TIM3 1ms；timer.c/h 改名 bsp_timer.c/h，接口收敛为 `bsp_timer_init()`
-- [ ] **Step 2:** IWDG_Init(4,800) ~1.6s，主循环喂狗；iwdg.c/h 改名 bsp_iwdg.c/h
-- [ ] **Step 3:** Flash 0x080E0000 校准区：`flash_cal_read(k,b)` / `flash_cal_write(k,b)`（45 组 k/b float，带魔数校验）
-- [ ] **Step 4:** 中断服务迁移到 `bsp_it.c`（SysTick/TIM2/TIM3 IRQ），stm32f4xx_it.c 移出编译
-- [ ] **Step 5:** Keil Device 由 STM32F407VGTx 改为 STM32F407IGTx（实际封装 LQFP176，已确认）
-- [ ] **Step 6:** 编译验证；Commit
+- [x] **Step 1:** TIM2 1kHz 软定时 tick（供 softtimer），TIM3 1ms；timer.c/h 改名 bsp_timer.c/h，接口收敛为 `bsp_timer_init()`
+- [x] **Step 2:** IWDG_Init(4,800) ~1.6s，主循环喂狗；iwdg.c/h 改名 bsp_iwdg.c/h
+- [x] **Step 3:** Flash 0x080E0000 校准区：`flash_cal_read(k,b)` / `flash_cal_write(k,b)`（45 组 k/b float，带魔数校验）
+- [x] **Step 4:** 中断服务迁移到 `bsp_it.c`（SysTick/TIM2/TIM3 IRQ），stm32f4xx_it.c 移出编译
+- [x] **Step 5:** Keil Device 由 STM32F407VGTx 改为 STM32F407IGTx（实际封装 LQFP176，已确认）
+- [x] **Step 6:** 编译验证；Commit
 
-### Task 6: Dev 层 —— gda6641.c/h（DAC 驱动）
+### Task 6: Dev 层 —— gda6641.c/h（DAC 驱动）✅ 已完成
 
 **Files:** 新建 `Dev/gda6641.c/h`
 
-- [ ] **Step 1:** 接口（handle 类型直接复用 `board_map.h` 的 `gda6641_handle_t` typedef，不再重复定义）：
+- [x] **Step 1:** 接口（handle 类型直接复用 `board_map.h` 的 `gda6641_handle_t` typedef，不再重复定义）：
 
 ```c
 /* handle = board_map.h 的 gda6641_handle_t (gda6641_pin_t 的 typedef)，不重复定义 */
@@ -243,14 +245,14 @@ void gda6641_clear(gda6641_handle_t *h);                /* CLR 低脉冲 硬件�
 void gda6641_reset(gda6641_handle_t *h);                /* POR 低脉冲 软复位 */
 ```
 
-- [ ] **Step 2:** 实现 32bit 帧移位（MSB first）：`u32 frame = ((u32)cmd<<24)|((u32)ch<<20)|((u32)d<<4)`；SYNC 拉低 → 32 次 SCLK 位操作（SCLK 拉高写 DIN → 拉低，空闲低电平即 Mode1/CPHA=1 边沿在下降沿发送）→ SYNC 拉高。通道地址编码：A/B/C/D = 0/1/2/3
-- [ ] **Step 3:** 编译验证；Commit
+- [x] **Step 2:** 实现 32bit 帧移位（MSB first）：`u32 frame = ((u32)cmd<<24)|((u32)ch<<20)|((u32)d<<4)`；SYNC 拉低 → 32 次 SCLK 位操作（SCLK 拉高写 DIN → 拉低，空闲低电平即 Mode1/CPHA=1 边沿在下降沿发送）→ SYNC 拉高。通道地址编码：A/B/C/D = 0/1/2/3
+- [x] **Step 3:** 编译验证；Commit
 
-### Task 7: Dev 层 —— lc1258.c/h（ADC 驱动）
+### Task 7: Dev 层 —— lc1258.c/h（ADC 驱动）✅ 已完成
 
 **Files:** 新建 `Dev/lc1258.c/h`
 
-- [ ] **Step 1:** 接口：
+- [x] **Step 1:** 接口：
 
 ```c
 /* handle = board_map.h 的 lc1258_handle_t (lc1258_pin_t 的 typedef)，不重复定义 */
@@ -264,15 +266,15 @@ u8  lc1258_data_ready(lc1258_handle_t *h);        /* DRDY==0 */
 s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid); /* RDATA(0x30) 读32bit, 返回24bit有符号 */
 ```
 
-- [ ] **Step 2:** 位操作实现：SCLK 空闲低、上升沿锁存 DIN、下降沿读 DOUT（Mode0）；CS 拉低后延时 2.5 tCLK；WREG=0x60|addr、RREG=0x50|addr、RDATA=0x30
-- [ ] **Step 3:** `lc1258_init` 流程：RST 低 2+ 周期 → 高 → 读 ID 验证 0x8B → 写 CONFIG0=0x0A（Auto-Scan+STAT）、CONFIG1=0x01（7.8kSPS）、MUXSG0=0xFF、MUXSG1=0xFF
-- [ ] **Step 4:** 编译验证；Commit
+- [x] **Step 2:** 位操作实现：SCLK 空闲低、上升沿锁存 DIN、下降沿读 DOUT（Mode0）；CS 拉低后延时 2.5 tCLK；WREG=0x60|addr、RREG=0x40|addr（MUL=0 单寄存器读，评审修正）、RDATA=0x30
+- [x] **Step 3:** `lc1258_init` 流程：RST 低 2+ 周期 → 高 → 读 ID 验证 0x8B → 写 CONFIG0=0x0A（Auto-Scan+STAT）、CONFIG1=0x01（7.8kSPS）、MUXSG0=0xFF、MUXSG1=0xFF
+- [x] **Step 4:** 编译验证；Commit
 
-### Task 8: Dev 层 —— efuse.c/h + xca4001.c/h
+### Task 8: Dev 层 —— efuse.c/h + xca4001.c/h ✅ 已完成
 
 **Files:** 新建 `Dev/efuse.c/h`、`Dev/xca4001.c/h`
 
-- [ ] **Step 1:** efuse 抽象（handle 传端口引脚）：
+- [x] **Step 1:** efuse 抽象（handle 传端口引脚）：
 
 ```c
 typedef struct {
@@ -287,38 +289,38 @@ void efuse_clear_latch(efuse_handle_t *h);   /* EN低100us→高 软启动并清
 u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048恒返回0勿用于故障判定 */
 ```
 
-- [ ] **Step 2:** xca4001：`xca4001_set_latch_mode(h)`/`xca4001_set_auto_mode(h)`、`xca4001_clear_latch(h)`（≥100ns 低脉冲, 结束后回锁存模式）、`xca4001_alert_active(h)`
-- [ ] **Step 3:** 编译验证；Commit
+- [x] **Step 2:** xca4001：`xca4001_set_latch_mode(h)`/`xca4001_set_auto_mode(h)`、`xca4001_clear_latch(h)`（≥100ns 低脉冲, 结束后回锁存模式）、`xca4001_alert_active(h)`
+- [x] **Step 3:** 编译验证；Commit
 
-### Task 9: App 层 —— app_protocol.c/h（协议）
+### Task 9: App 层 —— app_protocol.c/h（协议）✅ 已完成
 
 **Files:** 新建 `App/app_protocol.c/h`
 
-- [ ] **Step 1:** 帧结构定义：
+- [x] **Step 1:** 帧结构定义：
 
 ```c
 #define FRAME_HEAD_UP    0x55AAu
 #define FRAME_HEAD_DOWN  0xAA55u
 #define FRAME_TAIL       0xACBCu
 #define FRAME_PREAMBLE   0xABDEu
-#define FRAME_LEN_UP     0x005Fu   /* 待确认: 内容按doc为96字节0x60 */
-#define FRAME_LEN_DOWN   0x005Fu
+#define FRAME_LEN_UP     0x0060u   /* 实现值; 文档写0x5F, 待确认#1 */
+#define FRAME_LEN_DOWN   0x0060u
 ```
 
-- [ ] **Step 2:** 上传帧组包 `protocol_build_upload(u8 *buf, monitor_data_t *m, power_state_t *p)`：0x55AA + 长度 + 15×(ID+V_mV+I_mA) + 默认状态 + 开关状态 + 告警状态 + 校验和（帧头至内容累加低16位）+ 0xACBC
-- [ ] **Step 3:** 下发帧解包 `protocol_parse_down(u8 *buf, u16 len, threshold_t *t, power_state_t *p)`：校验帧头 0xAA55、帧长、校验和、帧尾；提取 15 路基准电压/电流与开关指令
-- [ ] **Step 4:** 读流程状态机 `protocol_read_task()`：周期发前导帧（0x55AA,0x0002,0xABDE,校验0x018A,0xACBC）→ 连续时钟接收下发帧 → 解包（握手时序待确认，按"前导帧+继续时钟读"标准模式实现，预留状态机扩展）
-- [ ] **Step 5:** 编译验证；Commit
+- [x] **Step 2:** 上传帧组包 `protocol_build_upload(u8 *buf, monitor_data_t *m, power_state_t *p)`：0x55AA + 长度 + 15×(ID+V_mV+I_mA) + 默认状态 + 开关状态 + 告警状态 + 校验和（帧头至内容累加低16位）+ 0xACBC
+- [x] **Step 3:** 下发帧解包 `protocol_parse_down(u8 *buf, u16 len, threshold_t *t, power_state_t *p)`：校验帧头 0xAA55、帧长、校验和、帧尾；提取 15 路基准电压/电流与开关指令
+- [x] **Step 4:** 读流程状态机 `protocol_read_task()`：周期发前导帧（0x55AA,0x0002,0xABDE,校验0x018A,0xACBC）→ 连续时钟接收下发帧 → 解包（握手时序待确认，按"前导帧+继续时钟读"标准模式实现，预留状态机扩展）
+- [x] **Step 5:** 编译验证；Commit
 
-### Task 10: App 层 —— app_monitor.c/h（采集与告警）
+### Task 10: App 层 —— app_monitor.c/h（采集与告警）✅ 已完成
 
 **Files:** 新建 `App/app_monitor.c/h`
 
-- [ ] **Step 1:** 周期任务（MultiTimer 注册）：`monitor_task()` 轮询 4 片 LC1258 DRDY → `lc1258_read_channel` 取 (chid, 24bit) → 按三张 AIN 映射表（g_dev_map[].adc_ain_v/i/t + g_t_map[]）写入 `monitor_data_t`（15 路 V/I/T + 4 路 XCA4001 + 4 恒压源）
-- [ ] **Step 2:** 物理量换算：按芯片类型分派两套换算函数（系数集中在 `app_config.h`，默认值取 §1.3 doc 值，Flash k/b 校准覆盖分压离散误差）；KF 设备双温度点 `kf1_temp`/`kf2_temp`
-- [ ] **Step 3:** FAULT 模拟量译码：DYGY/GSDJ FAULT（CH3.AIN10/11）按电压分段译码（0.1/0.3/0.6/0.9/1.2/1.5V），并入设备告警位
-- [ ] **Step 4:** 告警判断：V/I > FPGA 下发基准阈值 → 告警位；FAULT/GOK/GOC/ALERT 硬件信号并入告警位
-- [ ] **Step 5:** 编译验证；Commit
+- [x] **Step 1:** 周期任务（MultiTimer 注册）：`monitor_task()` 轮询 4 片 LC1258 DRDY → `lc1258_read_channel` 取 (chid, 24bit) → 按三张 AIN 映射表（g_dev_map[].adc_ain_v/i/t + g_t_map[]）写入 `monitor_data_t`（15 路 V/I/T + 4 路 XCA4001 + 4 恒压源）
+- [x] **Step 2:** 物理量换算：按芯片类型分派两套换算函数（系数集中在 `app_config.h`，默认值取 §1.3 doc 值，Flash k/b 校准覆盖分压离散误差）；KF 设备双温度点 `kf1_temp`/`kf2_temp`
+- [x] **Step 3:** FAULT 模拟量译码：DYGY/GSDJ FAULT（CH3.AIN10/11）按电压分段译码（0.1/0.3/0.6/0.9/1.2/1.5V），并入设备告警位
+- [x] **Step 4:** 告警判断：V/I > FPGA 下发基准阈值 → 告警位；FAULT/GOK/GOC/ALERT 硬件信号并入告警位
+- [x] **Step 5:** 编译验证；Commit
 
 ### Task 11: App 层 —— app_power.c/h（电源控制业务）✅ 已完成
 
@@ -329,15 +331,15 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 - [x] **Step 3:** 限流配置 `power_set_limit(id, i_limit_mA)`：换算 `V_CLREF = I × (0.09 或 0.02)` → `D = V_CLREF/2.5×65536` → `gda6641_write_input` 缓存 → `power_flush_limits()` 4 片 `gda6641_update_all` 同步刷新
 - [x] **Step 4:** 故障恢复策略：默认"MCU 只上报告警，开关/清锁存由 FPGA 指令驱动"
 - [x] **Step 5:** 编译验证；Commit
-- [ ] **遗留（Task 12 接线）:** `default_state` 字段消费（FPGA 下发默认状态按帧配置）；先 flush 限流再 apply 开关状态的顺序约定
+- [x] **遗留（Task 12 接线）:** `default_state` 字段消费（FPGA 下发默认状态按帧配置）；先 flush 限流再 apply 开关状态的顺序约定
 
-### Task 12: App 层 —— app_main.c（主流程集成）
+### Task 12: App 层 —— app_main.c（主流程集成）✅ 已完成
 
 **Files:** 新建 `App/app_main.c/h`；删除 `User/main.c`
 
-- [ ] **Step 1:** 主流程：NVIC 分组 → delay_init → bsp_board_init → usart/RTT → bsp_spi_init → bsp_timer_init → softtimer_init → iwdg_init → power_init（DAC 初始化+默认限流）→ monitor_init（4 ADC ID 校验+start+校准读取）→ 注册 MultiTimer 任务（1ms monitor_task / 100ms monitor_convert_all / 周期协议收发 + FPGA 下发指令消费：先 power_set_limit+flush 再 power_apply_state、default_state 按帧配置）
-- [ ] **Step 2:** 主循环：`softtimer_loop(); bsp_iwdg_feed();`
-- [ ] **Step 3:** Keil 全量 Rebuild 0 Error 0 Warning；Commit
+- [x] **Step 1:** 主流程：NVIC 分组 → delay_init → bsp_board_init → usart/RTT → bsp_spi_init → bsp_timer_init → softtimer_init → iwdg_init → power_init（DAC 初始化+默认限流）→ monitor_init（4 ADC ID 校验+start+校准读取）→ 注册 MultiTimer 任务（1ms monitor_task / 100ms monitor_convert_all / 周期协议收发 + FPGA 下发指令消费：先 power_set_limit+flush 再 power_apply_state、default_state 按帧配置）
+- [x] **Step 2:** 主循环：`softtimer_loop(); bsp_iwdg_feed();`
+- [x] **Step 3:** Keil 全量 Rebuild 0 Error 0 Warning；Commit
 
 ### Task 13: 集成联调清单（硬件，按顺序执行）
 
