@@ -280,6 +280,12 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid); /* RDATA(0x30) 读32bit, 
 - [x] **Step 2:** 位操作实现：SCLK 空闲低、上升沿锁存 DIN、下降沿读 DOUT（Mode0）；CS 拉低后延时 2.5 tCLK；WREG=0x60|addr、RREG=0x40|addr（MUL=0 单寄存器读，评审修正）、RDATA=0x30
 - [x] **Step 3:** `lc1258_init` 流程：RST 低 2+ 周期 → 高 → 读 ID 验证 0x8B → 写 CONFIG0=0x0A（Auto-Scan+STAT）、CONFIG1=0x01（7.8kSPS）、MUXSG0=0xFF、MUXSG1=0xFF
 - [x] **Step 4:** 编译验证；Commit
+- [x] **补丁（2026-08-17，按厂商模板程序 `文档/芯片手册/ADS1258/103_1258` 对齐）:**
+  1. 数据解析符号扩展后 <<1（×2，模板 readData 实证修正"需要左移一位"），App 换算改 `code/16777215×VREF`（去掉 1.06 系数，同模板 volt_b 公式）
+  2. CS 两沿各 delay_us(1)（td(SCCS)/td(CSSC) ≥2tCLK，模板 setCS 实证）
+  3. 复位释放后 tWAKE delay_ms(5)（模板 adcStartupRoutine）
+  4. 全量写 9 寄存器（CONFIG1=0x41 DLY64µs+DRATE01，模板值）+ 回读 CONFIG0/1/MUXSG0/1 校验
+  5. 保留差异（架构设计，非芯片逻辑）：DRDY 轮询替代 EXTI 中断、无 registerMap 缓存、无 DIRECT 读模式、无 PWDN/CLKSEL 引脚（本板硬件固定）、不复制模板 SCBCS 宏错误值
 
 ### Task 8: Dev 层 —— efuse.c/h + xca4001.c/h ✅ 已完成
 
@@ -374,6 +380,7 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 **校准与参数：**
 
 - [ ] LC1258 外部基准电压 ADC_VREF 确认（默认 2.5V）与 DOUT 引脚接线确认
+- [ ] LC1258 读数与实测电压比对（验证厂商模板 <<1 移位与 VREF 换算；若偏差 2 倍，回退 lc1258_read_channel 移位与 ADC_FS_CODE 各一行，2026-08-17 按模板对齐）
 - [ ] FAULT 模拟量分段阈值容差校准（±150mV 带宽）—— 待确认#9
 - [ ] 45 组 k/b 校准系数烧写与验证（0x080E0000）—— 待确认#7
 - [ ] PE13/PF13 空置确认 —— 待确认#8

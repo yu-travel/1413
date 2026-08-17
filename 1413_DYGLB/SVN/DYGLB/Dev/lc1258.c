@@ -10,10 +10,14 @@
                   2. Mode0 时序: SCLK 空闲低, DIN 在 SCLK 上升沿被锁存,
                      DOUT 在 SCLK 下降沿输出, 故每个 bit 先写 DIN 再拉高 SCLK,
                      拉低 SCLK 后读 DOUT
-                  3. CS 拉低后需等待 2.5tCLK 再发命令:
-                     内部 fCLK=16MHz → tCLK=62.5ns → 2.5tCLK≈160ns,
-                     保守用 delay_us(1) 实现 (依赖 delay_init 已由 main.c 完成)
-                  4. 168MHz 系统时钟下单条 GPIO 读写约 20~40ns,
+                  3. CS 时序 (厂商模板程序 hal.c setCS 实证):
+                     CS 拉低后需等 td(SCCS), CS 拉高后需等 td(CSSC),
+                     均 ≥2tCLK (fCLK=16MHz → tCLK=62.5ns → ≈125ns),
+                     两个边沿保守各 delay_us(1) (依赖 delay_init 已由 main 完成)
+                  4. 数据解析: 24bit 补码符号扩展后 <<1 (×2) —— 厂商模板
+                     ads1258.c readData 实证修正 ("与原程序不同, 需要左移一位"),
+                     2026-08-17 按模板对齐 (待联调验证)
+                  5. 168MHz 系统时钟下单条 GPIO 读写约 20~40ns,
                      已满足芯片 SPI 时序要求, 按位插入 __NOP() 增加时序裕量
 */
 
@@ -49,32 +53,39 @@ static u8 lc1258_spi_byte(lc1258_handle_t *h, u8 tx)
 }
 
 /*
-    @brief      : CS 拉低后等待 2.5tCLK 再发命令
-    @note       : 内部 fCLK=16MHz → tCLK=62.5ns → 2.5tCLK≈160ns,
-                  保守用 delay_us(1) 实现
+    @brief      : CS 边沿后等待 td(SCCS)/td(CSSC)
+    @note       : CS 拉低后需等 td(SCCS) 再发命令, CS 拉高后需等 td(CSSC)
+                  才能再次拉低, 均 ≥2tCLK (fCLK=16MHz → tCLK=62.5ns → ≈125ns),
+                  保守用 delay_us(1) 实现 (厂商模板 hal.c setCS 两沿均延时)
     @param[in]  : none
     @param[out] : none
     @retval     : none
 */
 static void lc1258_cs_setup_delay(void)
 {
-    delay_us(1);                                        /* ≥160ns 时序要求, 1us 保守裕量 */
+    delay_us(1);                                        /* ≥125ns 时序要求, 1us 保守裕量 */
 }
 
 /*
     @brief      : 初始化 LC1258
-    @note       : 流程: RST 低脉冲复位 (≥2 个系统时钟, 保守 100us) → 释放 →
-                  读 ID 寄存器校验 == 0x8B → 写 CONFIG0=0x0A (Auto-Scan + 状态字节),
-                   CONFIG1=0x01 (Auto-Scan 每通道 6.168kSPS),
-                  MUXSG0/MUXSG1=0xFF (16 路单端通道全部开启);
-                  复位后寄存器本为默认值, 重写一次保证确定性
+    @note       : 流程按厂商模板 adcStartupRoutine 对齐 (2026-08-17):
+                   RST 低脉冲复位 (≥2 个系统时钟, 保守 100us) → 释放后 tWAKE
+                   等待 5ms (芯片加载默认寄存器与滤波缓存复位, 模板 delay_ms(5))
+                   → 读 ID 寄存器校验 == 0x8B → 全量写 9 个寄存器
+                   (CONFIG0=0x0A Auto-Scan+状态字节; CONFIG1=0x41
+                    DLY=64us+DRATE=01, 模板值; MUXSCH/MUXDIF/SYSRED/GPIOD=0x00,
+                    MUXSG0/MUXSG1=0xFF 单端全开, GPIOC=0xFF 全输入)
+                   → 回读 CONFIG0/CONFIG1/MUXSG0/MUXSG1 校验写值
+                   (模板 write 后 readMultipleRegisters 回读验证);
+                   本板无 PWDN/CLKSEL 引脚 (硬件固定), 对应步骤不适用
     @param[in]  : h    LC1258 实例句柄
     @param[out] : none
-    @retval     : 1 = 成功 (ID 校验通过); 0 = 失败 (句柄无效/ID 不匹配)
+    @retval     : 1 = 成功 (ID 与回读校验通过); 0 = 失败 (句柄无效/ID 不匹配/回读不一致)
 */
 u8 lc1258_init(lc1258_handle_t *h)
 {
     u8 id = 0;
+    u8 rb = 0;
 
     if (h == NULL) {
         return 0;
@@ -86,7 +97,7 @@ u8 lc1258_init(lc1258_handle_t *h)
     GPIO_ResetBits(h->rst.port, h->rst.pin);            /* RST=0, 触发硬件复位 */
     delay_us(100);                                      /* ≥2 个系统时钟 (125ns), 保守 100us */
     GPIO_SetBits(h->rst.port, h->rst.pin);              /* RST=1, 释放复位 */
-    delay_us(100);                                      /* 等待芯片加载默认寄存器与滤波缓存复位 */
+    delay_ms(5);                                        /* tWAKE: 模板 delay_ms(5), 等待默认寄存器加载完成 */
 
     if (lc1258_read_reg(h, LC1258_REG_ID, &id) == 0) {
         return 0;
@@ -95,10 +106,30 @@ u8 lc1258_init(lc1258_handle_t *h)
         return 0;
     }
 
+    /* 全量写 9 个寄存器 (与模板 initRegisterMap 一致, 复位后本为默认值, 重写保证确定性) */
     lc1258_write_reg(h, LC1258_REG_CONFIG0, 0x0A);      /* Auto-Scan + 带状态字节, 内部直连, 不开斩波 */
-    lc1258_write_reg(h, LC1258_REG_CONFIG1, 0x01);      /* Standby + 无切换延时 + 无偏置 + DRATE=01 (Auto-Scan 每通道 6.168kSPS, fCLK=16MHz) */
-    lc1258_write_reg(h, LC1258_REG_MUXSG0, 0xFF);       /* 单端通道 AIN0~AIN7 全部开启 */
-    lc1258_write_reg(h, LC1258_REG_MUXSG1, 0xFF);       /* 单端通道 AIN8~AIN15 全部开启 */
+    lc1258_write_reg(h, LC1258_REG_CONFIG1, 0x41);      /* Standby + DLY=64us + 无偏置 + DRATE=01 (模板值: CONFIG1_DLY_64us|CONFIG1_DRATE_7813SPS) */
+    lc1258_write_reg(h, LC1258_REG_MUXSCH,  0x00);      /* Fixed 模式通道选择 (Auto-Scan 下无效, 写默认) */
+    lc1258_write_reg(h, LC1258_REG_MUXDIF,  0x00);      /* 差分通道全部关闭 */
+    lc1258_write_reg(h, LC1258_REG_MUXSG0,  0xFF);      /* 单端通道 AIN0~AIN7 全部开启 */
+    lc1258_write_reg(h, LC1258_REG_MUXSG1,  0xFF);      /* 单端通道 AIN8~AIN15 全部开启 */
+    lc1258_write_reg(h, LC1258_REG_SYSRED,  0x00);      /* 内部监测通道全部关闭 */
+    lc1258_write_reg(h, LC1258_REG_GPIOC,   0xFF);      /* 芯片 GPIO 全输入 (默认) */
+    lc1258_write_reg(h, LC1258_REG_GPIOD,   0x00);      /* 芯片 GPIO 输出电平清零 (默认) */
+
+    /* 回读关键寄存器校验 (模板 write 后回读验证) */
+    if (lc1258_read_reg(h, LC1258_REG_CONFIG0, &rb) == 0 || rb != 0x0A) {
+        return 0;
+    }
+    if (lc1258_read_reg(h, LC1258_REG_CONFIG1, &rb) == 0 || rb != 0x41) {
+        return 0;
+    }
+    if (lc1258_read_reg(h, LC1258_REG_MUXSG0, &rb) == 0 || rb != 0xFF) {
+        return 0;
+    }
+    if (lc1258_read_reg(h, LC1258_REG_MUXSG1, &rb) == 0 || rb != 0xFF) {
+        return 0;
+    }
 
     return 1;
 }
@@ -119,12 +150,13 @@ u8 lc1258_write_reg(lc1258_handle_t *h, u8 addr, u8 val)
     }
 
     GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0, 开启 SPI 总线 */
-    lc1258_cs_setup_delay();                            /* 等待 2.5tCLK ≈ 160ns */
+    lc1258_cs_setup_delay();                            /* td(SCCS) ≥ 125ns */
 
     lc1258_spi_byte(h, (u8)(LC1258_CMD_WREG | (addr & 0x0F)));  /* 命令 011 0 A[3:0] */
     lc1258_spi_byte(h, val);                            /* 1 字节寄存器数据 */
 
     GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1, 结束通信 */
+    lc1258_cs_setup_delay();                            /* td(CSSC) ≥ 125ns */
 
     return 1;
 }
@@ -145,12 +177,13 @@ u8 lc1258_read_reg(lc1258_handle_t *h, u8 addr, u8 *val)
     }
 
     GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0, 开启 SPI 总线 */
-    lc1258_cs_setup_delay();                            /* 等待 2.5tCLK ≈ 160ns */
+    lc1258_cs_setup_delay();                            /* td(SCCS) ≥ 125ns */
 
     lc1258_spi_byte(h, (u8)(LC1258_CMD_RREG | (addr & 0x0F)));  /* 命令 010 0 A[3:0] */
     *val = lc1258_spi_byte(h, 0x00);                    /* 读回寄存器数据 */
 
     GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1, 结束通信 */
+    lc1258_cs_setup_delay();                            /* td(CSSC) ≥ 125ns */
 
     return 1;
 }
@@ -216,10 +249,11 @@ u8 lc1258_data_ready(lc1258_handle_t *h)
                   NEW/OVF 监测由上层通过轮询 DRDY 保证数据新鲜;
                   RDATA 为缓冲读, 缓冲数据不会被新转换覆盖 (未读期间新转换结果不更新缓冲),
                   上层须按 DRDY 节奏及时读取以保证数据新鲜 (否则丢失的是后续样本的新鲜度, 而非缓冲值)
-                  24bit → s32 符号扩展: (b1<<24|b2<<16|b3<<8) 算术右移 8 位
+                  24bit → s32 符号扩展后 <<1 (×2, 厂商模板 readData 实证修正,
+                  2026-08-17 按模板对齐, 待联调验证; 上层换算按 code/16777215×VREF)
     @param[in]  : h     LC1258 实例句柄
     @param[out] : chid  状态字节低 5 位 = 当前采样通道编号 (Auto-Scan 有效), 可传 NULL
-    @retval     : 24bit 补码符号扩展后的有符号采样值 (0x7FFFFF=正满量程, 0x800000=负满量程);
+    @retval     : 24bit 补码符号扩展后左移 1 位的采样值 (±0xFFFFFE 量级);
                   句柄无效时返回 0
 */
 s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
@@ -233,7 +267,7 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
     }
 
     GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0, 开启 SPI 总线 */
-    lc1258_cs_setup_delay();                            /* 等待 2.5tCLK ≈ 160ns */
+    lc1258_cs_setup_delay();                            /* td(SCCS) ≥ 125ns */
 
     lc1258_spi_byte(h, LC1258_CMD_RDATA);               /* 命令 001 1 xxxx, 返回值丢弃 */
     status = lc1258_spi_byte(h, 0x00);                  /* 状态字节: NEW/OVF/SUPPLY/CHID */
@@ -242,12 +276,14 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
     b3 = lc1258_spi_byte(h, 0x00);                      /* 低字节 */
 
     GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1, 结束通信 */
+    lc1258_cs_setup_delay();                            /* td(CSSC) ≥ 125ns */
 
     if (chid != NULL) {
         *chid = status & LC1258_STAT_CHID;              /* 当前通道编号 (低 5 位) */
     }
 
     raw = (s32)(((u32)b1 << 24) | ((u32)b2 << 16) | ((u32)b3 << 8)) >> 8;   /* 24bit 补码符号扩展 */
+    raw <<= 1;                                          /* LC1258 厂商模板实证: 数据需左移一位 (等效 ×2) */
 
     return raw;
 }

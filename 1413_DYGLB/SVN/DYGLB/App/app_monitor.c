@@ -82,14 +82,16 @@ static const float s_rail_coef[4] = {
 
 /*
     @brief      : 24bit 补码原始码 → ADC 输入引脚电压
-    @note       : V_adc = code / 8388607 × (1.06 × ADC_VREF)
-    @param[in]  : code  24bit 二进制补码 (lc1258_read_channel 返回值)
+    @note       : V_adc = code / 16777215 × VREF (厂商模板 volt_b 公式,
+                  无 1.06 系数; 驱动层 lc1258_read_channel 已 <<1,
+                  满量程码域为 2^24-1, 2026-08-17 按模板对齐)
+    @param[in]  : code  24bit 二进制补码 <<1 后的值 (lc1258_read_channel 返回值)
     @param[out] : none
     @retval     : 引脚电压 V
 */
 static float monitor_raw_to_vadc(s32 code)
 {
-    return (float)code / ADC_FS_CODE * (ADC_FS_SCALE * ADC_VREF);
+    return (float)code / ADC_FS_CODE * ADC_VREF;
 }
 
 /*

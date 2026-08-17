@@ -10,14 +10,17 @@
                      (CS/RST=1, SCLK/DIN/START=0, DRDY 上拉输入, DOUT 输入),
                      本驱动只做协议时序操作
                   2. SPI Mode0: SCLK 空闲低, DIN 上升沿锁存, DOUT 下降沿输出, MSB 先行
-                  3. CS 拉低后等待 2.5tCLK (内部 fCLK=16MHz → tCLK=62.5ns → ≈160ns)
-                     再发命令, 保守用 delay_us(1) 实现
+                  3. CS 时序: 拉低后 td(SCCS) 与拉高后 td(CSSC) 均 ≥2tCLK
+                     (fCLK=16MHz → tCLK=62.5ns → ≈125ns), 两沿各 delay_us(1)
+                     (厂商模板 hal.c setCS 实证)
                   4. Auto-Scan 模式: START 永久拉高, 芯片循环扫描所有已选通道,
                      每通道转换完成 DRDY 拉低, SPI 读出第一个 SCLK 下降沿后
                      DRDY 自动恢复高
                   5. RDATA 读: 发命令 0x30 (MUL 必须=1), 随后 32 个 SCLK 读回
-                     1 字节状态 (NEW/OVF/SUPPLY/CHID) + 3 字节 24bit 二进制补码数据
-                  6. 满量程: +1.06VREF → 0x7FFFFF, -1.06VREF → 0x800000
+                     1 字节状态 (NEW/OVF/SUPPLY/CHID) + 3 字节 24bit 二进制补码数据;
+                     解析时符号扩展后 <<1 (×2, 厂商模板 readData 实证修正,
+                     2026-08-17 对齐, 待联调验证), 上层按 code/16777215×VREF 换算
+                  6. 本板无 PWDN/CLKSEL 引脚 (硬件固定), 复位仅用 RST 硬件引脚
 */
 
 /*============================================================
