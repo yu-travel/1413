@@ -14,8 +14,22 @@ extern volatile u64 timer3_count;   /* 定义于 bsp_timer.c */
 /*            Cortex-M4 Processor Exceptions Handlers                         */
 /******************************************************************************/
 
+/*
+    @brief      : NMI 异常处理 (CSS 时钟安全系统)
+    @note       : CSS 使能后 HSE 失效触发 NMI, 硬件已自动切回 HSI (16MHz);
+                  此处清除 CSSF 标志并输出告警 (系统继续以 HSI 低速运行,
+                  看门狗仍由 LSI 驱动不受影响, 上位机可据此判定时钟故障);
+                  清除流程按 RM0090: 置 RCC_CIR.CSSC 清除 CSSF
+    @param[in]  : none
+    @param[out] : none
+    @retval     : none
+*/
 void NMI_Handler(void)
 {
+    if ((RCC->CIR & RCC_CIR_CSSF) != 0u) {
+        TRACE_OUT(1, "NMI: HSE fail, CSS switched to HSI\r\n");
+        RCC->CIR |= RCC_CIR_CSSC;   /* 清除 CSSF 标志 */
+    }
 }
 
 /*

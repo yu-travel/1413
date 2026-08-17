@@ -10,6 +10,17 @@
 
 **Tech Stack:** STM32F407IGTx(LQFP176) + ST 标准库 1.8.0、Keil MDK (AC5)、SEGGER RTT、elog、MultiTimer 软定时器、内部 Flash 校准。无 EEPROM（上电默认全关，默认开关状态由 FPGA 下发帧提供）。
 
+### 系统时钟配置（doc/clock_config.md，2026-08-17 实施）
+
+| 配置项 | 值 | 说明 |
+|--------|-----|------|
+| HSE | 25MHz | 新板外部晶振，`User/stm32f4xx.h` HSE_VALUE 已改 25000000（原 8MHz 适配旧板） |
+| PLL | M=25 / N=336 / P=2 / Q=4 | `User/system_stm32f4xx.c` PLL_M 8→25、PLL_Q 7→4（本板不用 USB/RNG/SDIO，Q=4 输出 84MHz） |
+| SYSCLK / HCLK | 168MHz | AHB /1 |
+| APB1 / APB2 | 42MHz / 84MHz | /4 / /2，定时器倍频后 84MHz / 168MHz；TIM/SPI/USART 时序均不变 |
+| CSS | Enable | SetSysClock PLL 切换成功后置 CSSON；HSE 失效自动切 HSI 并触发 NMI（`Bsp/bsp_it.c` NMI_Handler 清 CSSF + RTT 告警） |
+| RTC 源 | LSI | 本固件未用 RTC，无代码；LSI 自动驱动 IWDG |
+
 ---
 
 ## 一、系统资源清单（来自 doc 分析，2026-08-15 定稿）
@@ -345,6 +356,7 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 
 **驱动级验证：**
 
+- [ ] 上电验证 SYSCLK=168MHz（MCO 引脚输出或 1ms 定时/波特率精度；25MHz 晶振 + PLL M25/N336/P2/Q4，2026-08-17 已按 clock_config.md 配置）
 - [ ] 4 片 LC1258 上电读 ID = 0x8B（失败时对应设备告警位应置位，RTT 有日志）
 - [ ] 4 片 GDA6641 输出 0~2.5V 任意通道验证（示波器确认 SCLK 位时序与 LDAC ≥20ns 脉冲宽度，Task 6 评审跟进项）
 - [ ] 15 路 EN 通断 + 21 路故障输入读取

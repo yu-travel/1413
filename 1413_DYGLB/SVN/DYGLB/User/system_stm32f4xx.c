@@ -56,14 +56,14 @@
   *-----------------------------------------------------------------------------
   *        HSE Frequency(Hz)                      | 25000000
   *-----------------------------------------------------------------------------
-  *        PLL_M                                  | 25
-  *-----------------------------------------------------------------------------
-  *        PLL_N                                  | 336
-  *-----------------------------------------------------------------------------
-  *        PLL_P                                  | 2
-  *-----------------------------------------------------------------------------
-  *        PLL_Q                                  | 7
-  *-----------------------------------------------------------------------------
+ *        PLL_M                                  | 25
+ *-----------------------------------------------------------------------------
+ *        PLL_N                                  | 336
+ *-----------------------------------------------------------------------------
+ *        PLL_P                                  | 2
+ *-----------------------------------------------------------------------------
+ *        PLL_Q                                  | 4  (DYGLB: 本板不用 USB, doc/clock_config.md)
+ *-----------------------------------------------------------------------------
   *        PLLI2S_N                               | NA
   *-----------------------------------------------------------------------------
   *        PLLI2S_R                               | NA
@@ -313,7 +313,8 @@
 /************************* PLL Parameters *************************************/
 #if defined (STM32F40_41xxx) || defined (STM32F427_437xx) || defined (STM32F429_439xx) || defined (STM32F401xx)
 /* PLL_VCO = (HSE_VALUE or HSI_VALUE / PLL_M) * PLL_N */
-#define PLL_M      8
+/* DYGLB: PLL_M = 25 (HSE 25MHz → VCO 输入 1MHz, doc/clock_config.md), 2026-08-17 由 8 修改 */
+#define PLL_M      25
 #else /* STM32F411xE */
 #if defined (USE_HSE_BYPASS)
 #define PLL_M      8    
@@ -323,7 +324,9 @@
 #endif /* STM32F40_41xxx || STM32F427_437xx || STM32F429_439xx || STM32F401xx */  
 
 /* USB OTG FS, SDIO and RNG Clock =  PLL_VCO / PLLQ */
-#define PLL_Q      7
+/* DYGLB: PLL_Q = 4 → 84MHz (本板不用 USB/RNG/SDIO, doc/clock_config.md;
+   如需启用 USB 48MHz 须改回 7), 2026-08-17 由 7 修改 */
+#define PLL_Q      4
 
 #if defined (STM32F40_41xxx)
 #define PLL_N      336
@@ -657,6 +660,11 @@ static void SetSysClock(void)
     while ((RCC->CFGR & (uint32_t)RCC_CFGR_SWS ) != RCC_CFGR_SWS_PLL);
     {
     }
+
+    /* DYGLB: 使能 CSS 时钟安全系统 (doc/clock_config.md 要求 Enable):
+       HSE 异常时硬件自动切换 HSI 并触发 NMI (处理见 bsp_it.c NMI_Handler),
+       2026-08-17 新增 (本工程编译 STM32F40_41xxx 分支) */
+    RCC->CR |= RCC_CR_CSSON;
   }
   else
   { /* If HSE fails to start-up, the application will have wrong clock
