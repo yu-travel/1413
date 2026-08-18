@@ -286,6 +286,11 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid); /* RDATA(0x30) 读32bit, 
   3. 复位释放后 tWAKE delay_ms(5)（模板 adcStartupRoutine）
   4. 全量写 9 寄存器（CONFIG1=0x41 DLY64µs+DRATE01，模板值）+ 回读 CONFIG0/1/MUXSG0/1 校验
   5. 保留差异（架构设计，非芯片逻辑）：DRDY 轮询替代 EXTI 中断、无 registerMap 缓存、无 DIRECT 读模式、无 PWDN/CLKSEL 引脚（本板硬件固定）、不复制模板 SCBCS 宏错误值
+- [x] **补丁（2026-08-18，DOUT 采样时序修正，联调实测）:**
+  - 现象：4 片 LC1258 ID 均读回 0x16（=0x8B 左移一位）
+  - 根因：`lc1258_spi_byte` 在 SCLK 下降沿后仅 __NOP 裕量即采样 DOUT，芯片 DOUT 含传播延时 t_PD，采样过早读到上一位 → 每字节整体左移 1 bit
+  - 修复：SCLK 下降沿后 `delay_us(1)` 再读 DOUT（低位中段采样，每字节 8µs；1ms 采集任务最坏 4 片同时就绪 160µs 占 16%，可接受）
+  - 佐证：0x8B<<1=0x116→低8位0x16；同时确认 DOUT 引脚接线通畅（此前"模拟，跳过 GPIO"疑点解除）
 
 ### Task 8: Dev 层 —— efuse.c/h + xca4001.c/h ✅ 已完成
 
@@ -363,7 +368,7 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 **驱动级验证：**
 
 - [ ] 上电验证 SYSCLK=168MHz（MCO 引脚输出或 1ms 定时/波特率精度；25MHz 晶振 + PLL M25/N336/P2/Q4，2026-08-17 已按 clock_config.md 配置）
-- [ ] 4 片 LC1258 上电读 ID = 0x8B（失败时对应设备告警位应置位，RTT 有日志）
+- [ ] 4 片 LC1258 上电读 ID = 0x8B（2026-08-18 实测曾读 0x16=0x8B<<1，DOUT 采样过早已修：下降沿后 delay_us(1) 采样；失败时对应设备告警位应置位，RTT 有日志）
 - [ ] 4 片 GDA6641 输出 0~2.5V 任意通道验证（示波器确认 SCLK 位时序与 LDAC ≥20ns 脉冲宽度，Task 6 评审跟进项）
 - [ ] 15 路 EN 通断 + 21 路故障输入读取
 - [ ] DAC 限流 → 实际电流钳位值校准（5048: I=V_CLREF/0.09; 5016: I=V_CLREF/0.02）
@@ -379,7 +384,7 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 
 **校准与参数：**
 
-- [ ] LC1258 外部基准电压 ADC_VREF 确认（默认 2.5V）与 DOUT 引脚接线确认
+- [ ] LC1258 外部基准电压 ADC_VREF 确认（默认 2.5V）与 DOUT 引脚接线确认（DOUT 数据流已实证通畅，2026-08-18）
 - [ ] LC1258 读数与实测电压比对（验证厂商模板 <<1 移位与 VREF 换算；若偏差 2 倍，回退 lc1258_read_channel 移位与 ADC_FS_CODE 各一行，2026-08-17 按模板对齐）
 - [ ] FAULT 模拟量分段阈值容差校准（±150mV 带宽）—— 待确认#9
 - [ ] 45 组 k/b 校准系数烧写与验证（0x080E0000）—— 待确认#7

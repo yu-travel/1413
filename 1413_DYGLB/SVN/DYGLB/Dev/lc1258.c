@@ -17,15 +17,19 @@
                   4. 数据解析: 24bit 补码符号扩展后 <<1 (×2) —— 厂商模板
                      ads1258.c readData 实证修正 ("与原程序不同, 需要左移一位"),
                      2026-08-17 按模板对齐 (待联调验证)
-                  5. 168MHz 系统时钟下单条 GPIO 读写约 20~40ns,
-                     已满足芯片 SPI 时序要求, 按位插入 __NOP() 增加时序裕量
+                  5. DOUT 采样: 芯片在 SCLK 下降沿更新 DOUT (含传播延时 t_PD),
+                     2026-08-17 实测 4 片 ID 均读回 0x16 (=0x8B<<1, 采样过早读到上一位),
+                     修复为 SCLK 下降沿后 delay_us(1) 再采样 (低位中段采样);
+                     本驱动不再依赖 __NOP 微小裕量
 */
 
 /*
     @brief      : 发送一个字节并接收一个字节 (MSB 先行)
     @note       : Mode0: 每 bit 先写 DIN (SCLK=0 期间建立数据) → SCLK=1
-                  上升沿锁存 DIN → SCLK=0 下降沿 DOUT 输出 → 读 DOUT;
-                   8 bit 循环完成
+                  上升沿锁存 DIN → SCLK=0 下降沿芯片更新 DOUT (含 t_PD 传播延时)
+                  → delay_us(1) 等待 DOUT 稳定后读取 (低位中段采样, 2026-08-17 实测修正:
+                  原仅 __NOP 裕量导致采样过早, 4 片 ID 均读成 0x16=0x8B<<1);
+                  8 bit 循环完成, 每字节 8µs
     @param[in]  : h    LC1258 实例句柄
     @param[in]  : tx   待发送字节
     @param[out] : none
@@ -42,8 +46,8 @@ static u8 lc1258_spi_byte(lc1258_handle_t *h, u8 tx)
         __NOP();
         GPIO_SetBits(h->sclk.port, h->sclk.pin);        /* SCLK=1, 上升沿锁存 DIN */
         __NOP();
-        GPIO_ResetBits(h->sclk.port, h->sclk.pin);      /* SCLK=0, 下降沿 DOUT 输出 */
-        __NOP();
+        GPIO_ResetBits(h->sclk.port, h->sclk.pin);      /* SCLK=0, 下降沿芯片更新 DOUT */
+        delay_us(1);                                    /* 等 t_PD 传播, 低位中段稳定后采样 */
         if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
             rx |= (u8)(1u << i);                        /* 读 DOUT 位 (MSB 先行) */
         }
