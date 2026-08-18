@@ -8,6 +8,7 @@
 #include "bsp_spi.h"
 #include "bsp_timer.h"
 #include "delay.h"
+#include "lc1258.h"
 #include "softtimer.h"
 #include "usart.h"
 
@@ -223,18 +224,62 @@ void app_tasks_init(void)
 /*
     @brief      : 主函数: 分层初始化 + 主循环 (任务分发 + 喂狗)
     @note       : 1. 初始化顺序见文件头注释; 看门狗最后启动,
-                  避免 Flash 校准等慢操作期间被误复位
-                  2. 主循环 softtimer_loop() 分发到期任务回调,
-                  随后喂狗; 若任一任务回调阻塞超 1.6s, 看门狗复位
+                   避免 Flash 校准等慢操作期间被误复位
+                   2. 主循环 softtimer_loop() 分发到期任务回调,
+                   随后喂狗; 若任一任务回调阻塞超 1.6s, 看门狗复位
     @param[in]  : none
     @param[out] : none
     @retval     : 0 (启动后不返回, 由看门狗/复位接管)
 */
+
+#if ADC_REG_DUMP_TEST
+/*
+    @brief      : LC1258 寄存器默认值 dump 诊断 (联调用, 结束后置 ADC_REG_DUMP_TEST=0)
+    @note       : 在 bsp_board_init 之后、monitor_init (会写配置) 之前调用;
+                  每片: RST 硬件复位 → tWAKE 5ms → 不写任何配置, 直接按
+                  "前缀 0xB0 + RREG" 协议读回全部 10 个寄存器默认值, RTT 打印;
+                  预期: CONFIG0=0A CONFIG1=83 MUXSCH=00 MUXDIF=00 MUXSG0=FF
+                  MUXSG1=FF SYSRED=00 GPIOC=FF GPIOD=00 ID=8B (官方手册 V1.8 P33)
+    @param[in]  : none
+    @param[out] : none
+    @retval     : none
+*/
+static void adc_reg_dump_test(void)
+{
+    u8 i, a, v;
+
+    for (i = 0u; i < 4u; i++) {
+        lc1258_handle_t *h = (lc1258_handle_t *)&g_adc_pin_map[i];
+
+        /* 硬件复位到出厂默认 (不写任何寄存器) */
+        GPIO_SetBits(h->cs.port, h->cs.pin);            /* CS=1, 总线空闲 */
+        GPIO_ResetBits(h->start.port, h->start.pin);    /* START=0, 复位期间停止转换 */
+        GPIO_ResetBits(h->rst.port, h->rst.pin);        /* RST=0 */
+        delay_us(100);                                  /* ≥2 个系统时钟, 保守 100us */
+        GPIO_SetBits(h->rst.port, h->rst.pin);          /* RST=1 释放 */
+        delay_ms(5);                                    /* tWAKE */
+
+        TRACE_OUT(DEBUG_OUT, "ADC%d default regs: ", i);
+        for (a = 0u; a <= LC1258_REG_ID; a++) {
+            if (lc1258_read_reg(h, a, &v) != 0u) {
+                TRACE_OUT(DEBUG_OUT, "%02X ", v);
+            } else {
+                TRACE_OUT(DEBUG_OUT, "?? ");
+            }
+        }
+        TRACE_OUT(DEBUG_OUT, "\r\n");
+    }
+}
+#endif /* ADC_REG_DUMP_TEST */
+
 int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);    /* 中断优先级分组 2 */
     delay_init(168);                                   /* SysTick 延时, 168MHz */
     bsp_board_init();                                  /* GPIO/JTAG 板级初始化 */
+#if ADC_REG_DUMP_TEST
+    adc_reg_dump_test();                               /* 联调诊断: dump 4 片 ADC 寄存器默认值 */
+#endif
     usart1_init(115200);                               /* 调试串口 */
     bsp_spi_init();                                    /* FPGA SPI1 */
     bsp_timer_init();                                  /* TIM2 1kHz tick + TIM3 1ms */
@@ -248,5 +293,7 @@ int main(void)
     while (1) {
         softtimer_loop();                              /* 分发到期任务回调 */
         bsp_iwdg_feed();                               /* 喂狗 */
+			//TRACE_OUT(DEBUG_OUT, "<DYGLB> runing\r\n");
+			//printf("running\r\n");
     }
 }

@@ -4,29 +4,43 @@
 #include "board_map.h"
 
 /*
-    @brief      : LC1258 (ADS1258) 24 位 16 通道 ADC 驱动 (GPIO 位操作模拟 SPI)
+    @brief      : LC1258 (SIMCHIP 国产) 16 通道 24 位 Δ-Σ ADC 驱动 (GPIO 位操作模拟 SPI)
     @note       : 1. 引脚结构体 lc1258_handle_t (lc1258_pin_t) 由 board_map.h 定义,
                      bsp_board.c 已完成 GPIO 方向与空闲电平初始化
                      (CS/RST=1, SCLK/DIN/START=0, DRDY 上拉输入, DOUT 输入),
                      本驱动只做协议时序操作
-                  2. SPI Mode0: SCLK 空闲低, DIN 上升沿锁存, DOUT 下降沿输出, MSB 先行
-                  3. CS 时序: 拉低后 td(SCCS) 与拉高后 td(CSSC) 均 ≥2tCLK
+                  2. SPI Mode0: SCLK 空闲低, DIN 上升沿锁存, DOUT 下降沿切换,
+                     主机须在 SCLK 上升沿收取 DOUT (官方手册 V1.8 P29:
+                     "IC 外部在时钟上升沿收取 Data"), MSB 先行
+                  3. 寄存器为 6 位地址 (A5A4+A3A2A1A0), 每次 WREG/RREG 前必须先发
+                     "高 2 位地址前缀命令" (官方手册表18, 0xB0~0xB3), 否则读写失效;
+                     本工程寄存器全部 00h~09h (A5A4=00) → 前缀固定 0xB0;
+                     RDATA 通道数据读不需要前缀
+                  4. CS 时序: 拉低后 td(SCCS) 与拉高后 td(CSSC) 均 ≥2tCLK
                      (fCLK=16MHz → tCLK=62.5ns → ≈125ns), 两沿各 delay_us(1)
-                     (厂商模板 hal.c setCS 实证)
-                  4. Auto-Scan 模式: START 永久拉高, 芯片循环扫描所有已选通道,
+                  5. Auto-Scan 模式: START 永久拉高, 芯片循环扫描所有已选通道,
                      每通道转换完成 DRDY 拉低, SPI 读出第一个 SCLK 下降沿后
                      DRDY 自动恢复高
-                  5. RDATA 读: 发命令 0x30 (MUL 必须=1), 随后 32 个 SCLK 读回
+                  6. RDATA 读: 发命令 0x30 (MUL 必须=1), 随后 32 个 SCLK 读回
                      1 字节状态 (NEW/OVF/SUPPLY/CHID) + 3 字节 24bit 二进制补码数据;
-                     解析时符号扩展后 <<1 (×2, 厂商模板 readData 实证修正,
-                     2026-08-17 对齐, 待联调验证), 上层按 code/16777215×VREF 换算
-                  6. 本板无 PWDN/CLKSEL 引脚 (硬件固定), 复位仅用 RST 硬件引脚
+                     默认输出模式 1LSB=VREF/800000h (P23), 解析 <<1 后
+                     按 code/16777215×VREF 换算 (等价 raw/2^23×VREF)
+                  7. 本板无 PWDN/CLKSEL 引脚 (硬件固定), 复位仅用 RST 硬件引脚
 */
+
+/*============================================================
+    寄存器高 2 位地址前缀命令 (官方手册 V1.8 表18, 寄存器读写前必发)
+    命令字: 8'b101_100_A5A4
+============================================================*/
+#define LC1258_CMD_ADDR_MSB_00  0xB0u   /* 1011 0000: 寄存器地址高 2 位 A5A4 = 00 (本工程所有寄存器 00h~09h 用此) */
+#define LC1258_CMD_ADDR_MSB_01  0xB1u   /* 1011 0001: A5A4 = 01 */
+#define LC1258_CMD_ADDR_MSB_10  0xB2u   /* 1011 0010: A5A4 = 10 (REF 20h / CLK 2Ah 用) */
+#define LC1258_CMD_ADDR_MSB_11  0xB3u   /* 1011 0011: A5A4 = 11 */
 
 /*============================================================
     命令字节: C[2:0] | MUL | A[3:0] (MSB 先行)
 ============================================================*/
-#define LC1258_CMD_RDATA   0x30u   /* 001 1 xxxx: 寄存器格式读通道数据 (MUL 必须=1) */
+#define LC1258_CMD_RDATA   0x30u   /* 001 1 xxxx: 寄存器格式读通道数据 (MUL 必须=1, 无需前缀) */
 #define LC1258_CMD_RREG    0x40u   /* 010 0 0000: 寄存器读 (MUL=0 单寄存器), 按位或起始地址 A[3:0] */
 #define LC1258_CMD_WREG    0x60u   /* 011 0 0000: 寄存器写 (MUL=0 单寄存器), 按位或地址, 后跟 1 字节数据 */
 #define LC1258_CMD_PULSE   0x80u   /* 100 x xxxx: 单次脉冲转换 (START 拉低时用) */
@@ -46,7 +60,7 @@
 #define LC1258_REG_GPIOD   0x08u   /* GPIO 电平寄存器 */
 #define LC1258_REG_ID      0x09u   /* 只读芯片 ID (固定 0x8B) */
 
-#define LC1258_CHIP_ID     0x8Bu   /* 芯片 ID 固定值, 用于上电校验 */
+#define LC1258_CHIP_ID     0x8Bu   /* 芯片 ID 固定值 (官方手册 P33 表20, 厂商确认), 用于上电校验 */
 
 /* 状态字节位定义 (32bit 读数据首字节) */
 #define LC1258_STAT_NEW    0x80u   /* 1 = 数据未读取 */
