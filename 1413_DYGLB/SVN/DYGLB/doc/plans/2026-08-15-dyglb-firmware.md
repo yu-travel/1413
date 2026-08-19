@@ -296,7 +296,14 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid); /* RDATA(0x30) 读32bit, 
   - 根因 2（DOUT 采样边沿错误）：手册 P29"IC 外部在时钟上升沿收取 Data"，主机须在 SCLK 上升沿采样 DOUT；原下降沿后采样读到下一位 → 整字节左移（ID 0x8B 读成 0x16）
   - 修改：lc1258.h 新增前缀宏 0xB0~0xB3；write_reg/read_reg 命令前插入 0xB0；spi_byte 改上升沿采样（DIN→SCLK↑→delay_us(1)→读 DOUT→SCLK↓→delay_us(1)）；LC1258_CHIP_ID 恢复 0x8B（临时 0x16 工作区已移除）
   - 新增联调诊断：adc_reg_dump_test()（app_config.h ADC_REG_DUMP_TEST=1 开关），bsp_board_init 后不写配置直接读 4 片全部 10 寄存器默认值 RTT 打印，预期 ID=8B、CONFIG0=0A、CONFIG1=83、MUXSG0/1=FF、GPIOC=FF
-  - 换算保持：默认输出模式 1LSB=VREF/800000h（P23），当前 <<1 + /16777215×VREF 等价 raw/2^23×VREF ✓
+   - 换算保持：默认输出模式 1LSB=VREF/800000h（P23），当前 <<1 + /16777215×VREF 等价 raw/2^23×VREF ✓
+- [x] **补丁（2026-08-18，E6 配方固化进驱动，最终时序定论）:**
+  - 背景：上升沿采样（补丁3）读出 ID=0x8A（bit0 丢失）；一次上板 6 组对照实验（E1~E6）后 E6 配方读出完整 0x8B
+  - **厂商确认**：LC1258 SPI 时序 = "上升沿时钟输入数据(DIN)，下降沿时钟输出数据(DOUT)"（即经典 SPI Mode1：CPOL=0/CPHA=1 芯片视角）；DOUT 数据流比常规 SPI 提前一拍：bit7 在命令字节最后下降沿输出，bit6..0 依次在后续 7 个数据时钟下降沿输出，且仅下沿瞬间有效
+  - **厂商模板 <<1 之谜**：模板用硬件 SPI CPHA_1Edge（上升沿采样）早一拍读到左移位流，故 readData 用 <<1 补偿；E6 在下降沿采样读回完整位流，无需 <<1
+  - 修改：lc1258.c 新增 lc1258_read_byte_mode1（bit7 预取 + 下降沿瞬间采样 + 补空时钟）；read_reg 数据字节、read_channel 状态+3 数据字节改用之；read_channel 移除 `raw <<= 1`；App 换算 ADC_FS_CODE 16777215→8388608（手册 1LSB=VREF/800000h，满量程 ±VREF，净量程不变）；诊断简化为 E6 版直接调 lc1258_read_reg
+  - 验证数据（2026-08-18 上板，4 片一致）：`E6(precap,all): 0A 83 00 00 FF FF 00 FF FF 8B`，ID=8B 完整；GPIOD 读回 FF 为引脚电平（寄存器值 00h，厂商确认），不校验
+  - 详细过程见 `doc/LC1258调试记录-2026-08-18.md`
 
 ### Task 8: Dev 层 —— efuse.c/h + xca4001.c/h ✅ 已完成
 
@@ -374,7 +381,7 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 **驱动级验证：**
 
 - [ ] 上电验证 SYSCLK=168MHz（MCO 引脚输出或 1ms 定时/波特率精度；25MHz 晶振 + PLL M25/N336/P2/Q4，2026-08-17 已按 clock_config.md 配置）
-- [ ] 4 片 LC1258 上电读 ID = 0x8B（2026-08-18 实测曾读 0x16=0x8B<<1，根因=寄存器 6 位地址前缀缺失 + DOUT 上升沿采样，已按官方手册 V1.8 修正；可用 ADC_REG_DUMP_TEST=1 的寄存器 dump 诊断；失败时对应设备告警位应置位，RTT 有日志）
+- [ ] 4 片 LC1258 上电读 ID = 0x8B（2026-08-18 E6 配方固化后实测已读出完整 8B，见 doc/LC1258调试记录-2026-08-18.md；可用 ADC_REG_DUMP_TEST=1 的寄存器 dump 诊断；失败时对应设备告警位应置位，RTT 有日志）
 - [ ] 4 片 GDA6641 输出 0~2.5V 任意通道验证（示波器确认 SCLK 位时序与 LDAC ≥20ns 脉冲宽度，Task 6 评审跟进项）
 - [ ] 15 路 EN 通断 + 21 路故障输入读取
 - [ ] DAC 限流 → 实际电流钳位值校准（5048: I=V_CLREF/0.09; 5016: I=V_CLREF/0.02）
@@ -391,7 +398,7 @@ u8   efuse_is_gok_goc(efuse_handle_t *h);    /* 仅5016 GOK/GOC检测, MAC5048�
 **校准与参数：**
 
 - [ ] LC1258 外部基准电压 ADC_VREF 确认（默认 2.5V，官方手册测试条件为 4.096V，待实测）与 DOUT 引脚接线确认（DOUT 数据流已实证通畅，2026-08-18）
-- [ ] LC1258 读数与实测电压比对（验证厂商模板 <<1 移位与 VREF 换算；若偏差 2 倍，回退 lc1258_read_channel 移位与 ADC_FS_CODE 各一行，2026-08-17 按模板对齐）
+- [ ] LC1258 读数与实测电压比对（E6 采样读回完整位流，已移除 <<1、ADC_FS_CODE=8388608；若偏差 2 倍，回退 lc1258_read_channel 移位与 ADC_FS_CODE 各一行，2026-08-18 固化）
 - [ ] FAULT 模拟量分段阈值容差校准（±150mV 带宽）—— 待确认#9
 - [ ] 45 组 k/b 校准系数烧写与验证（0x080E0000）—— 待确认#7
 - [ ] PE13/PF13 空置确认 —— 待确认#8

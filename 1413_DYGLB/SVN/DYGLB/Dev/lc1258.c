@@ -3,23 +3,24 @@
 
 /*
     @brief      : LC1258 (SIMCHIP 国产) 16 通道 24 位 Δ-Σ ADC 驱动
-                  采用 GPIO 位操作模拟 SPI 通信 (SPI Mode0)
+                  采用 GPIO 位操作模拟 SPI 通信 (厂商确认: DIN 上升沿输入, DOUT 下降沿输出)
     @note       : 1. 引脚方向与空闲电平由 bsp_board.c 完成初始化
                      (CS/RST=1, SCLK/DIN/START=0, DRDY 上拉输入, DOUT 输入),
                      速度 100MHz 推挽
-                  2. Mode0 时序: SCLK 空闲低, DIN 在 SCLK 上升沿被锁存,
-                     DOUT 在 SCLK 下降沿切换下一位, 主机须在 SCLK 上升沿收取
-                     (官方手册 V1.8 P29), 故每个 bit 先写 DIN → SCLK 拉高 →
-                     delay_us(1) → 读 DOUT → SCLK 拉低 → delay_us(1)
+                  2. 厂商时序确认: "上升沿时钟输入数据(DIN), 下降沿时钟输出数据(DOUT)",
+                     DOUT 数据流比常规 SPI 提前一拍: bit7 在命令字节最后下降沿输出,
+                     bit6..bit0 依次在后续 7 个数据时钟下降沿输出, 且仅下沿瞬间有效;
+                     发送用 lc1258_spi_byte (DIN 上升沿锁存), 数据读取用
+                     lc1258_read_byte_mode1 (bit7 预取 + 下降沿瞬间采样, E6 配方实证)
                   3. 寄存器 6 位地址前缀: 每次 WREG/RREG 前必须先发 0xB0 前缀
                      (官方手册 V1.8 表18, 本工程寄存器全部 A5A4=00);
                      RDATA 通道数据读无需前缀
                   4. CS 时序: 拉低后 td(SCCS) 与拉高后 td(CSSC) 均 ≥2tCLK
                      (fCLK=16MHz → tCLK=62.5ns → ≈125ns), 两沿各 delay_us(1)
-                  5. 数据解析: 24bit 补码符号扩展后 <<1, 上层按 code/16777215×VREF
-                     换算 (官方手册默认输出模式 1LSB=VREF/800000h, 等价 raw/2^23×VREF);
-                     2026-08-17 实测 4 片 ID 曾读回 0x16=0x8B<<1, 根因为
-                     寄存器前缀缺失 + DOUT 采样边沿错误, 2026-08-18 按手册修正
+                  5. 数据解析: 24bit 补码符号扩展 (不再 <<1, 厂商模板 <<1 是其
+                     CPHA_1Edge 上升沿采样早一拍的补偿, E6 下降沿采样读回完整位流);
+                     上层按 code/8388608×VREF 换算 (手册默认 1LSB=VREF/800000h,
+                     满量程 ±VREF); 2026-08-18 E6 配方上板验证 ID=8B 全寄存器完整
 */
 
 /*
@@ -52,6 +53,45 @@ static u8 lc1258_spi_byte(lc1258_handle_t *h, u8 tx)
         GPIO_ResetBits(h->sclk.port, h->sclk.pin);      /* SCLK=0, 下降沿芯片切换下一位 */
         delay_us(1);                                    /* 下降沿到下次上升沿间隔 */
     }
+
+    return rx;
+}
+
+/*
+    @brief      : 读取一个数据字节 (E6 配方, 厂商确认 DOUT 下降沿输出)
+    @note       : bit7 在前一个字节(或命令字)的最后下降沿已输出, SCLK 为低时
+                  立即预取; bit6..bit0 依次在后续 7 个数据时钟下降沿输出,
+                  在下降沿瞬间采样; 末尾补 1 个空时钟完成 8 时钟帧 (下一字节的
+                  bit7 恰在此下降沿输出, 连续调用自然衔接);
+                  2026-08-18 E6 配方上板验证: 全部寄存器含 bit0 完整读出
+    @param[in]  : h    LC1258 实例句柄
+    @param[out] : none
+    @retval     : 完整 8 位数据
+*/
+static u8 lc1258_read_byte_mode1(lc1258_handle_t *h)
+{
+    u8  rx = 0;
+    s32 i;
+
+    /* 命令字节最后下降沿后 DOUT 已输出 bit7 (SCLK 当前为低) */
+    if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
+        rx |= 0x80u;                                    /* 预取 bit7 */
+    }
+
+    /* 7 个数据时钟, 每个下降沿瞬间采样 bit6..bit0 */
+    for (i = 6; i >= 0; i--) {
+        GPIO_SetBits(h->sclk.port, h->sclk.pin);        /* SCLK=1 */
+        __NOP();
+        GPIO_ResetBits(h->sclk.port, h->sclk.pin);      /* SCLK=0 下降沿, DOUT 输出下一位 */
+        if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
+            rx |= (u8)(1u << i);                        /* 下降沿瞬间采样 */
+        }
+    }
+
+    /* 补第 8 个空时钟, 完成数据字节 8 时钟帧时序 */
+    GPIO_SetBits(h->sclk.port, h->sclk.pin);
+    __NOP();
+    GPIO_ResetBits(h->sclk.port, h->sclk.pin);
 
     return rx;
 }
@@ -172,8 +212,8 @@ u8 lc1258_write_reg(lc1258_handle_t *h, u8 addr, u8 val)
     @brief      : 读单个配置寄存器
     @note       : 官方手册 V1.8: 寄存器 6 位地址, 读前必须先发高 2 位地址前缀命令
                   (本工程寄存器 00h~09h A5A4=00 → 前缀 0xB0);
-                  随后 RREG 命令 (010 0 A[3:0], MUL=0), 命令字节的第 8 个 SCLK
-                  下降沿开始 DOUT 输出寄存器数据, 主机在上升沿收取 (见 lc1258_spi_byte)
+                  随后 RREG 命令 (010 0 A[3:0], MUL=0), 数据字节按 E6 配方读取
+                  (bit7 预取 + 下降沿瞬间采样, 见 lc1258_read_byte_mode1)
     @param[in]  : h     LC1258 实例句柄
     @param[in]  : addr  寄存器地址 0x00~0x09
     @param[out] : val   读回的寄存器值
@@ -190,7 +230,7 @@ u8 lc1258_read_reg(lc1258_handle_t *h, u8 addr, u8 *val)
 
     lc1258_spi_byte(h, LC1258_CMD_ADDR_MSB_00);         /* 高 2 位地址前缀 (A5A4=00), 必发 */
     lc1258_spi_byte(h, (u8)(LC1258_CMD_RREG | (addr & 0x0F)));  /* 命令 010 0 A[3:0] */
-    *val = lc1258_spi_byte(h, 0x00);                    /* 读回寄存器数据 */
+    *val = lc1258_read_byte_mode1(h);                   /* 数据字节: E6 配方 */
 
     GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1, 结束通信 */
     lc1258_cs_setup_delay();                            /* td(CSSC) ≥ 125ns */
@@ -253,18 +293,19 @@ u8 lc1258_data_ready(lc1258_handle_t *h)
     @brief      : 读取当前通道转换结果 (RDATA 寄存器格式读)
     @note       : 调用前须由上层轮询 lc1258_data_ready() 确认 DRDY 拉低;
                   CS=0 → 发命令 0x30 (MUL 必须=1, 通道数据读无需高 2 位地址前缀)
-                  → 随后 32 个 SCLK 读回 [1 字节状态][3 字节 24bit ADC 数据];
-                  数据为二进制补码 MSB 先行, 主机在 SCLK 上升沿收取 (见 lc1258_spi_byte);
+                  → 连续读 4 字节 [1 字节状态][3 字节 24bit ADC 数据], 每个字节
+                  用 E6 配方 (bit7 预取 + 下降沿瞬间采样, 见 lc1258_read_byte_mode1,
+                  连续字节自然衔接);
                   读取操作不影响进行中的转换 (数据手册 RDATA 缓冲语义);
                   状态字节含 NEW/OVF/SUPPLY/CHID, 此处仅取 CHID 返回, 其余位丢弃,
                   NEW/OVF 监测由上层通过轮询 DRDY 保证数据新鲜;
                   RDATA 为缓冲读, 缓冲数据不会被新转换覆盖 (未读期间新转换结果不更新缓冲),
                   上层须按 DRDY 节奏及时读取以保证数据新鲜 (否则丢失的是后续样本的新鲜度, 而非缓冲值)
-                  24bit → s32 符号扩展后 <<1, 上层按 code/16777215×VREF 换算
-                  (官方手册 V1.8 P23 默认输出模式 1LSB=VREF/800000h, 等价 raw/2^23×VREF)
+                  24bit → s32 符号扩展 (不再 <<1, E6 采样读回完整位流;
+                  上层按 code/8388608×VREF 换算, 手册默认 1LSB=VREF/800000h)
     @param[in]  : h     LC1258 实例句柄
     @param[out] : chid  状态字节低 5 位 = 当前采样通道编号 (Auto-Scan 有效), 可传 NULL
-    @retval     : 24bit 补码符号扩展后左移 1 位的采样值 (±0xFFFFFE 量级);
+    @retval     : 24bit 补码符号扩展后的采样值 (±0x7FFFFF 量级);
                   句柄无效时返回 0
 */
 s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
@@ -281,10 +322,10 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
     lc1258_cs_setup_delay();                            /* td(SCCS) ≥ 125ns */
 
     lc1258_spi_byte(h, LC1258_CMD_RDATA);               /* 命令 001 1 xxxx, 返回值丢弃 */
-    status = lc1258_spi_byte(h, 0x00);                  /* 状态字节: NEW/OVF/SUPPLY/CHID */
-    b1 = lc1258_spi_byte(h, 0x00);                      /* 24bit ADC 数据高字节 */
-    b2 = lc1258_spi_byte(h, 0x00);                      /* 中字节 */
-    b3 = lc1258_spi_byte(h, 0x00);                      /* 低字节 */
+    status = lc1258_read_byte_mode1(h);                 /* 状态字节: NEW/OVF/SUPPLY/CHID */
+    b1 = lc1258_read_byte_mode1(h);                     /* 24bit ADC 数据高字节 */
+    b2 = lc1258_read_byte_mode1(h);                     /* 中字节 */
+    b3 = lc1258_read_byte_mode1(h);                     /* 低字节 */
 
     GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1, 结束通信 */
     lc1258_cs_setup_delay();                            /* td(CSSC) ≥ 125ns */
@@ -294,7 +335,6 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
     }
 
     raw = (s32)(((u32)b1 << 24) | ((u32)b2 << 16) | ((u32)b3 << 8)) >> 8;   /* 24bit 补码符号扩展 */
-    raw <<= 1;                                          /* LC1258 厂商模板实证: 数据需左移一位 (等效 ×2) */
 
     return raw;
 }

@@ -26,8 +26,8 @@
 
 /* ---------------- 采集换算系数 (doc 权威值, 联调可用 Flash k/b 校准修正) ---------------- */
 #define ADC_VREF            2.5f        /* LC1258 外部基准电压, 待确认 (联调校准) */
-#define ADC_FS_CODE         16777215.0f /* 2^24-1: 驱动输出已 <<1 (厂商模板对齐, 2026-08-17), 满量程码域扩大一倍 */
-/* 换算公式: V_adc = code / ADC_FS_CODE × ADC_VREF (厂商模板 volt_b 公式, 无 1.06 系数) */
+#define ADC_FS_CODE         8388608.0f  /* 2^23: 手册默认输出模式 1LSB=VREF/800000h, 满量程 ±VREF (驱动 E6 采样读回完整位流, 2026-08-18) */
+/* 换算公式: V_adc = code / ADC_FS_CODE × ADC_VREF (手册 P23 默认模式, 无 1.06 系数) */
 #define MON_COEF_V_5048     8.0f        /* MAC5048 VOUT 分压系数 */
 #define MON_COEF_V_5016     11.722f     /* HQEF5016 VOUT: 16*(27.4/37.4) */
 #define MON_COEF_IMON_5048  (10.0f/28.2f)   /* MAC5048 IMON 引脚电压系数 */

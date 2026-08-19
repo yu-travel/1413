@@ -9,9 +9,11 @@
                      bsp_board.c 已完成 GPIO 方向与空闲电平初始化
                      (CS/RST=1, SCLK/DIN/START=0, DRDY 上拉输入, DOUT 输入),
                      本驱动只做协议时序操作
-                  2. SPI Mode0: SCLK 空闲低, DIN 上升沿锁存, DOUT 下降沿切换,
-                     主机须在 SCLK 上升沿收取 DOUT (官方手册 V1.8 P29:
-                     "IC 外部在时钟上升沿收取 Data"), MSB 先行
+                  2. 厂商时序确认: "上升沿时钟输入数据(DIN), 下降沿时钟输出数据(DOUT)",
+                     DOUT 数据流比常规 SPI 提前一拍: bit7 在命令字节最后下降沿输出,
+                     bit6..bit0 依次在后续 7 个数据时钟下降沿输出, 仅下沿瞬间有效;
+                     发送用 lc1258_spi_byte (DIN 上升沿锁存), 数据读取用
+                     lc1258_read_byte_mode1 (bit7 预取 + 下降沿瞬间采样, E6 配方实证)
                   3. 寄存器为 6 位地址 (A5A4+A3A2A1A0), 每次 WREG/RREG 前必须先发
                      "高 2 位地址前缀命令" (官方手册表18, 0xB0~0xB3), 否则读写失效;
                      本工程寄存器全部 00h~09h (A5A4=00) → 前缀固定 0xB0;
@@ -23,8 +25,8 @@
                      DRDY 自动恢复高
                   6. RDATA 读: 发命令 0x30 (MUL 必须=1), 随后 32 个 SCLK 读回
                      1 字节状态 (NEW/OVF/SUPPLY/CHID) + 3 字节 24bit 二进制补码数据;
-                     默认输出模式 1LSB=VREF/800000h (P23), 解析 <<1 后
-                     按 code/16777215×VREF 换算 (等价 raw/2^23×VREF)
+                     默认输出模式 1LSB=VREF/800000h (P23), 解析不再 <<1,
+                     上层按 code/8388608×VREF 换算 (满量程 ±VREF)
                   7. 本板无 PWDN/CLKSEL 引脚 (硬件固定), 复位仅用 RST 硬件引脚
 */
 

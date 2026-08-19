@@ -233,178 +233,21 @@ void app_tasks_init(void)
 */
 
 #if ADC_REG_DUMP_TEST
-/* 联调诊断用 SPI 模式: 6 种采样方案对照 */
-typedef enum {
-    DUMP_RISING,    /* E1: 上升沿后 delay_us(1) 采样 (当前驱动, 高电平中段) */
-    DUMP_FALLING,   /* E3: 下降沿后 delay_us(1) 采样 (低电平中段, 旧实现) */
-    DUMP_COMPACT,   /* E2: 紧凑时钟, 上升沿后 ~60ns 采样 (无位间隙) */
-    DUMP_FALLING0,  /* E4: 下降沿瞬间采样 (SCLK↓ 后立即读, 无延时) */
-    DUMP_RISING0    /* E5: 上升沿瞬间采样 (SCLK↑ 后 ~60ns 读, 拉低前) */
-} dump_mode_e;
-
 /*
-    @brief      : 诊断用位操作收发一字节 (支持五种采样模式)
-    @note       : 与 lc1258_spi_byte 同构, 供联调对照实验使用 (定位 DOUT 采样时序)
-    @param[in]  : h     LC1258 实例句柄
-    @param[in]  : tx    待发送字节
-    @param[in]  : mode  采样模式 (DUMP_RISING/DUMP_FALLING/DUMP_COMPACT/DUMP_FALLING0/DUMP_RISING0)
-    @param[out] : none
-    @retval     : 同时钟下读回的字节
-*/
-static u8 adc_diag_spi_byte(lc1258_handle_t *h, u8 tx, dump_mode_e mode)
-{
-    u8  rx = 0;
-    s32 i, j;
-
-    for (i = 7; i >= 0; i--) {
-        GPIO_WriteBit(h->din.port, h->din.pin,
-                      (BitAction)((tx >> i) & 0x1u));   /* 写 DIN 位 (SCLK=0 期间建立) */
-        __NOP();
-        GPIO_SetBits(h->sclk.port, h->sclk.pin);        /* SCLK=1 */
-
-        if (mode == DUMP_RISING) {
-            delay_us(1);                                /* E1: 上升沿后 1us 采样 (高电平中段) */
-            if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-                rx |= (u8)(1u << i);
-            }
-            GPIO_ResetBits(h->sclk.port, h->sclk.pin);
-            delay_us(1);
-        } else if (mode == DUMP_FALLING) {
-            __NOP();
-            GPIO_ResetBits(h->sclk.port, h->sclk.pin);  /* E3: 下降沿 */
-            delay_us(1);                                /* 下降沿后 1us 采样 (低电平中段) */
-            if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-                rx |= (u8)(1u << i);
-            }
-        } else if (mode == DUMP_FALLING0) {
-            __NOP();
-            GPIO_ResetBits(h->sclk.port, h->sclk.pin);  /* E4: 下降沿 */
-            if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-                rx |= (u8)(1u << i);                    /* 下降沿瞬间立即采样 (无延时) */
-            }
-            delay_us(1);                                /* 低电平保持 */
-        } else if (mode == DUMP_RISING0) {
-            for (j = 0; j < 10; j++) { __NOP(); }       /* E5: ~60ns 稳定裕量 */
-            if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-                rx |= (u8)(1u << i);                    /* 上升沿瞬间采样 (拉低前) */
-            }
-            GPIO_ResetBits(h->sclk.port, h->sclk.pin);
-            delay_us(1);
-        } else {                                        /* DUMP_COMPACT: 紧凑时钟 */
-            for (j = 0; j < 10; j++) { __NOP(); }       /* ~60ns 稳定裕量 */
-            if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-                rx |= (u8)(1u << i);
-            }
-            GPIO_ResetBits(h->sclk.port, h->sclk.pin);
-            for (j = 0; j < 10; j++) { __NOP(); }
-        }
-    }
-    return rx;
-}
-
-/*
-    @brief      : 诊断用寄存器读 (前缀 0xB0 + RREG, 连续读 3 字节)
-    @note       : 读 3 字节以暴露 DOUT 移位流 (数据是否滞后/多拍输出)
-    @param[in]  : h     LC1258 实例句柄
-    @param[in]  : addr  寄存器地址 0x00~0x09
-    @param[out] : b1/b2/b3  连续 3 个数据字节
-    @param[in]  : mode  采样模式
-    @retval     : none
-*/
-static void adc_diag_read_reg(lc1258_handle_t *h, u8 addr,
-                              u8 *b1, u8 *b2, u8 *b3, dump_mode_e mode)
-{
-    GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0 */
-    delay_us(1);
-    adc_diag_spi_byte(h, 0xB0u, mode);                  /* 高 2 位地址前缀 (A5A4=00) */
-    adc_diag_spi_byte(h, (u8)(0x40u | (addr & 0x0Fu)), mode);  /* RREG (MUL=0) */
-    *b1 = adc_diag_spi_byte(h, 0x00u, mode);            /* 数据字节 1 */
-    *b2 = adc_diag_spi_byte(h, 0x00u, mode);            /* 数据字节 2 */
-    *b3 = adc_diag_spi_byte(h, 0x00u, mode);            /* 数据字节 3 */
-    GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1 */
-    delay_us(1);
-}
-
-/*
-    @brief      : E6 配方: 数据字节读取 (bit7 预取 + 下降沿采样 bit6..0)
-    @note       : 依据 E4 实测 (0x16 = 0x8B<<1): DOUT 在 SCLK 下降沿输出, bit7 在
-                  命令字节最后下降沿已有效, bit6..0 依次在后续 7 个下降沿输出, 且
-                  短暂有效 (下降沿瞬间采样有效, 低电平后期为 0);
-                  流程: 命令字节发送完 (SCLK=0) 立即采样 bit7 → 7 个时钟
-                  [SCLK↑→__NOP→SCLK↓→立即采样] 得 bit6..0 → 补 1 个空时钟
-                  完成 8 数据时钟帧时序
-    @param[in]  : h     LC1258 实例句柄
-    @param[out] : none
-    @retval     : 完整 8 位数据 (期望含 bit0)
-*/
-static u8 adc_diag_read_data_precap(lc1258_handle_t *h)
-{
-    u8  rx = 0;
-    s32 i;
-
-    /* 命令字节最后下降沿后 DOUT 已输出 bit7 (SCLK 当前为低) */
-    if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-        rx |= 0x80u;                                    /* bit7 */
-    }
-
-    /* 7 个数据时钟, 每个下降沿瞬间采样 bit6..bit0 */
-    for (i = 6; i >= 0; i--) {
-        GPIO_SetBits(h->sclk.port, h->sclk.pin);        /* SCLK=1 */
-        __NOP();
-        GPIO_ResetBits(h->sclk.port, h->sclk.pin);      /* SCLK=0 下降沿, DOUT 输出下一位 */
-        if (GPIO_ReadInputDataBit(h->out.port, h->out.pin) != Bit_RESET) {
-            rx |= (u8)(1u << i);                        /* 下降沿瞬间采样 */
-        }
-    }
-
-    /* 补第 8 个空时钟, 完成数据字节 8 时钟帧时序 */
-    GPIO_SetBits(h->sclk.port, h->sclk.pin);
-    __NOP();
-    GPIO_ResetBits(h->sclk.port, h->sclk.pin);
-
-    return rx;
-}
-
-/*
-    @brief      : E6 配方寄存器读 (前缀 0xB0 + RREG 用普通模式, 数据字节用预取+下降沿)
-    @param[in]  : h     LC1258 实例句柄
-    @param[in]  : addr  寄存器地址 0x00~0x09
-    @param[out] : none
-    @retval     : 完整 8 位寄存器值
-*/
-static u8 adc_diag_read_reg_precap(lc1258_handle_t *h, u8 addr)
-{
-    u8 val;
-
-    GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0 */
-    delay_us(1);
-    adc_diag_spi_byte(h, 0xB0u, DUMP_RISING);           /* 前缀, DIN 锁存时序不变 */
-    adc_diag_spi_byte(h, (u8)(0x40u | (addr & 0x0Fu)), DUMP_RISING);  /* RREG */
-    val = adc_diag_read_data_precap(h);                 /* 数据字节: bit7 预取 + 下降沿采样 */
-    GPIO_SetBits(h->cs.port, h->cs.pin);                /* CS=1 */
-    delay_us(1);
-
-    return val;
-}
-
-/*
-    @brief      : LC1258 寄存器读时序诊断 (联调用, 结束后置 ADC_REG_DUMP_TEST=0)
+    @brief      : LC1258 寄存器读诊断 (联调用, 结束后置 ADC_REG_DUMP_TEST=0)
     @note       : 在 bsp_board_init 之后、monitor_init (会写配置) 之前调用;
-                  六个采样方案对照实验定位 DOUT 采样时序:
-                  E1: 上升沿后 1us 采样 (高电平中段, 当前驱动) + 每寄存器 3 字节
-                  E2: 紧凑时钟, 上升沿后 ~60ns 采样 (无位间隙) 读 ID
-                  E3: 下降沿后 1us 采样 (低电平中段) 读 ID
-                  E4: 下降沿瞬间采样 (SCLK↓ 后立即, 无延时) 读 ID
-                  E5: 上升沿瞬间采样 (SCLK↑ 后 ~60ns, 拉低前) 读 ID
-                  E6: bit7 预取(命令字节末下降沿) + 下降沿采样 bit6..0, 读全部寄存器
-                  若 E6 读出 ID=8B 且各寄存器与手册默认一致 → 配方正确, 固化进驱动
+                  直接用驱动 lc1258_read_reg (E6 配方: bit7 预取 + 下降沿采样)
+                  读全部 10 寄存器, 期望与手册 V1.8 默认值一致
+                  (0A 83 00 00 FF FF 00 FF FF [GPIOD 引脚电平] 8B);
+                  2026-08-18 E1~E5 对照实验已完成定位, 根因与配方见
+                  doc/LC1258调试记录-2026-08-18.md, 此处仅作回归对照
     @param[in]  : none
     @param[out] : none
     @retval     : none
 */
 static void adc_reg_dump_test(void)
 {
-    u8 i, a, b1, b2, b3;
+    u8 i, a, val;
 
     for (i = 0u; i < 4u; i++) {
         lc1258_handle_t *h = (lc1258_handle_t *)&g_adc_pin_map[i];
@@ -417,35 +260,13 @@ static void adc_reg_dump_test(void)
         GPIO_SetBits(h->rst.port, h->rst.pin);          /* RST=1 释放 */
         delay_ms(5);                                    /* tWAKE */
 
-        /* E1: 上升沿后 1us 采样 + 每寄存器 3 字节 */
-        TRACE_OUT(DEBUG_OUT, "ADC%d E1(rising,3B): ", i);
-        for (a = 0u; a <= LC1258_REG_ID; a++) {
-            adc_diag_read_reg(h, a, &b1, &b2, &b3, DUMP_RISING);
-            TRACE_OUT(DEBUG_OUT, "%02X/%02X/%02X ", b1, b2, b3);
-        }
-        TRACE_OUT(DEBUG_OUT, "\r\n");
-
-        /* E2: 紧凑时钟读 ID */
-        adc_diag_read_reg(h, LC1258_REG_ID, &b1, &b2, &b3, DUMP_COMPACT);
-        TRACE_OUT(DEBUG_OUT, "ADC%d E2(compact,ID): %02X/%02X/%02X\r\n", i, b1, b2, b3);
-
-        /* E3: 下降沿后 1us 采样读 ID */
-        adc_diag_read_reg(h, LC1258_REG_ID, &b1, &b2, &b3, DUMP_FALLING);
-        TRACE_OUT(DEBUG_OUT, "ADC%d E3(falling+1us,ID): %02X/%02X/%02X\r\n", i, b1, b2, b3);
-
-        /* E4: 下降沿瞬间采样读 ID */
-        adc_diag_read_reg(h, LC1258_REG_ID, &b1, &b2, &b3, DUMP_FALLING0);
-        TRACE_OUT(DEBUG_OUT, "ADC%d E4(falling+0ns,ID): %02X/%02X/%02X\r\n", i, b1, b2, b3);
-
-        /* E5: 上升沿瞬间采样读 ID */
-        adc_diag_read_reg(h, LC1258_REG_ID, &b1, &b2, &b3, DUMP_RISING0);
-        TRACE_OUT(DEBUG_OUT, "ADC%d E5(rising+60ns,ID): %02X/%02X/%02X\r\n", i, b1, b2, b3);
-
-        /* E6: bit7 预取 + 下降沿采样, 读全部 10 寄存器 */
         TRACE_OUT(DEBUG_OUT, "ADC%d E6(precap,all): ", i);
         for (a = 0u; a <= LC1258_REG_ID; a++) {
-            b1 = adc_diag_read_reg_precap(h, a);
-            TRACE_OUT(DEBUG_OUT, "%02X ", b1);
+            if (lc1258_read_reg(h, a, &val) == 0) {
+                TRACE_OUT(DEBUG_OUT, "-- ");
+            } else {
+                TRACE_OUT(DEBUG_OUT, "%02X ", val);
+            }
         }
         TRACE_OUT(DEBUG_OUT, "\r\n");
     }

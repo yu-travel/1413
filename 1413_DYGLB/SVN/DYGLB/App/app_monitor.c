@@ -82,10 +82,10 @@ static const float s_rail_coef[4] = {
 
 /*
     @brief      : 24bit 补码原始码 → ADC 输入引脚电压
-    @note       : V_adc = code / 16777215 × VREF (厂商模板 volt_b 公式,
-                  无 1.06 系数; 驱动层 lc1258_read_channel 已 <<1,
-                  满量程码域为 2^24-1, 2026-08-17 按模板对齐)
-    @param[in]  : code  24bit 二进制补码 <<1 后的值 (lc1258_read_channel 返回值)
+    @note       : V_adc = code / 8388608 × VREF (官方手册 P23 默认输出模式
+                   1LSB=VREF/800000h, 满量程 ±VREF; 驱动 E6 采样读回完整位流,
+                   不再 <<1, 2026-08-18)
+    @param[in]  : code  24bit 二进制补码符号扩展值 (lc1258_read_channel 返回值)
     @param[out] : none
     @retval     : 引脚电压 V
 */
