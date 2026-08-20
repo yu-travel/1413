@@ -654,9 +654,9 @@ void monitor_diag_dump(void)
     TRACE_OUT_2(DEBUG_OUT, "[DIAG] alarm=%04X aux_alarm=%02X adc_fault=%02X\r\n",
               monitor_get_alarm_state(), g_monitor.aux_alarm, s_adc_fault_mask);
 
-    /* 校准后物理量 (g_monitor) - 已含 Flash k/b 校准, 浮点以整数定标打印 (RTT 无 %f 支持) */
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === 校准后物理量 (g_monitor) ===\r\n");
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG] 设备实测:\r\n");
+    /* Calibrated physical (g_monitor) - Flash k/b calibrated, float as int-scaled (RTT no %f) */
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === Calibrated Physical (g_monitor) ===\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] Device Measured:\r\n");
     for (id = 1u; id < DEV_NUM; id++) {
         s32 t10 = (s32)(g_monitor.temp_c[id] * 10.0f);
         if (t10 < 0) {
@@ -678,7 +678,7 @@ void monitor_diag_dump(void)
                   (int)(kf2_t10 / 10), (int)(kf2_t10 % 10));
     }
 
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG] 辅助量:\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] Auxiliary:\r\n");
     {
         s32 ma0 = (s32)(g_monitor.rail_cur_a[0] * 1000.0f);
         s32 ma1 = (s32)(g_monitor.rail_cur_a[1] * 1000.0f);

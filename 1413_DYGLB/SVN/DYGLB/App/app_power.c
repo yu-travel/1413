@@ -290,7 +290,7 @@ void power_diag_dump(void)
         u16 code  = s_dac_code[id];
         s32 mv    = (s32)((float)code / 65536.0f * 2500.0f);   /* V_CLREF mV */
 
-        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA) 实测: I=%u.%03uA V=%u.%03uV T=%.1fC\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA) Meas: I=%u.%03uA V=%u.%03uV T=%.1fC\r\n",
                   id, (const char *)dev->name, en_lvl, fault,
                   (unsigned)(dev->dac_idx + 14u),                  /* U14..U17 */
                   'A' + (char)dev->dac_ch,
