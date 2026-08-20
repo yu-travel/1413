@@ -1,5 +1,6 @@
 #include "app_main.h"
 #include "app_config.h"
+#include "app_diag.h"
 #include "app_monitor.h"
 #include "app_power.h"
 #include "app_protocol.h"
@@ -37,6 +38,7 @@ static MultiTimer s_timer_convert;
 static MultiTimer s_timer_upload;
 static MultiTimer s_timer_proto;
 static MultiTimer s_timer_heartbeat;
+static MultiTimer s_timer_diag;
 
 /* 上传帧发送缓冲与 15 组测量值 (静态分配不进栈) */
 static u8            s_tx_buf[PROTO_TX_BUF_LEN];
@@ -205,6 +207,27 @@ static void task_heartbeat_cb(MultiTimer *timer, void *user_data)
 }
 
 /*
+    @brief      : 1000ms 芯片联调诊断任务回调
+    @note       : 打印 ADC/DAC/efuse/XCA4001 工作状态, 便于联调逐项核对;
+                  仅 CHIP_TEST_LOG=1 时输出, 联调完成后置 0 即关闭;
+                  重注册自身实现周期
+    @param[in]  : timer     MultiTimer 句柄 (重注册用)
+                  user_data 未使用
+    @param[out] : none
+    @retval     : none
+*/
+static void task_diag_cb(MultiTimer *timer, void *user_data)
+{
+    (void)user_data;
+
+#if CHIP_TEST_LOG
+    diag_task();
+#endif
+
+    softtimer_start(timer, TASK_DIAG_MS, task_diag_cb, timer);
+}
+
+/*
     @brief      : 注册 MultiTimer 周期任务 (主循环前调用一次)
     @note       : 周期宏 TASK_*_MS 见 app_config.h;
                   MultiTimer 单次触发, 各回调末尾自重注册实现周期
@@ -219,6 +242,7 @@ void app_tasks_init(void)
     softtimer_start(&s_timer_upload,    TASK_UPLOAD_MS,    task_upload_cb,    &s_timer_upload);
     softtimer_start(&s_timer_proto,     TASK_PROTO_MS,     task_proto_cb,     &s_timer_proto);
     softtimer_start(&s_timer_heartbeat, TASK_HEARTBEAT_MS, task_heartbeat_cb, &s_timer_heartbeat);
+    softtimer_start(&s_timer_diag,      TASK_DIAG_MS,      task_diag_cb,      &s_timer_diag);
 }
 
 /*
@@ -287,6 +311,7 @@ int main(void)
     softtimer_init();                                  /* MultiTimer 安装 tick 源 */
     power_init();                                      /* DAC + 默认限流 0mA + EN 全关 */
     monitor_init();                                    /* 4 片 ADC ID 校验 + START + Flash 校准 */
+    diag_init();                                       /* 联调诊断: 可选 15 路主动上电测试 (watchdog 启动前) */
     bsp_iwdg_init();                                   /* 1.6s 独立看门狗 */
     app_tasks_init();                                  /* 注册周期任务 */
     TRACE_OUT(DEBUG_OUT, "<DYGLB> init done, enter loop\r\n");

@@ -22,5 +22,7 @@ void power_apply_state(u16 switch_state);       /* 按 FPGA 下发状态配置 1
 void power_set_limit(dev_id_e id, u16 i_limit_ma);  /* 单路限流(mA), 写DAC输入寄存器(缓存) */
 void power_flush_limits(void);                  /* 4 片 DAC LDAC 脉冲同步刷新 */
 u16  power_get_switch_state(void);              /* 当前开关状态字 */
+void power_diag_dump(void);                     /* 联调诊断: 15 路 EN/故障引脚电平 + DAC 下发码值/电压/限流 (app_diag.c 调用) */
+void power_diag_test_seq(void);                 /* 联调诊断: 15 路逐路主动上电测试 (真实供电, 需确认负载安全, app_diag.c 调用) */
 
 #endif /* __APP_POWER_H_ */

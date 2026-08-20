@@ -55,5 +55,6 @@ void monitor_convert_all(void); /* 周期(100ms)调用: 码→物理量(换算+�
 void monitor_set_threshold(const dev_threshold_t *thr); /* 更新基准阈值(来自协议下发帧) */
 u16  monitor_get_alarm_state(void); /* 返回 15 路告警位 (bit1~15 对应 ID1~15) */
 u8   monitor_measure_to_protocol(dev_measure_t *m);    /* 填 15 组 id/vol_mv/cur_ma 供协议组包 */
+void monitor_diag_dump(void);   /* 联调诊断: 4片ADC原始码→电压 + 15设备物理量 + 辅助量 + 告警 (app_diag.c 调用) */
 
 #endif /* __APP_MONITOR_H_ */

@@ -475,6 +475,16 @@
               <FilePath>..\..\App\app_config.h</FilePath>
             </File>
             <File>
+              <FileName>app_diag.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\App\app_diag.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_diag.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\..\App\app_diag.h</FilePath>
+            </File>
+            <File>
               <FileName>app_monitor.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\App\app_monitor.c</FilePath>

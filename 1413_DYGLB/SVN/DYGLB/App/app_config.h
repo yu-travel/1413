@@ -60,9 +60,15 @@
 #define TASK_UPLOAD_MS       100         /* 100ms 上传帧组包发送 (MCU->FPGA) */
 #define TASK_PROTO_MS        200         /* 200ms 下发帧收发与指令消费 (FPGA->MCU) */
 #define TASK_HEARTBEAT_MS    1000        /* 1000ms RTT 心跳日志 (新板无调试 LED) */
+#define TASK_DIAG_MS         1000        /* 1000ms 芯片联调诊断日志周期 (app_diag.c) */
 
 /* ---------------- 联调诊断开关 ---------------- */
 #define ADC_REG_DUMP_TEST    1           /* 1=上电 dump 4 片 LC1258 全部寄存器默认值 (RTT 输出, 诊断后置 0) */
+
+/* ---------------- 芯片联调测试开关 (app_diag.c, 联调完成后置 0) ---------------- */
+#define CHIP_TEST_LOG         1          /* 1=使能芯片联调诊断日志 (ADC/DAC/efuse/XCA4001) */
+#define DIAG_EFUSE_ACTIVE_TEST 1         /* 1=上电一次性跑 15 路主动上电测试 (真实给输出供电, 注意负载安全) */
+#define DIAG_TEST_I_LIMIT_MA  1000       /* 主动测试限流 mA (过小会触发过流/故障误判) */
 
 /* ---------------- App 共享类型 ---------------- */
 

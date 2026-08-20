@@ -1,6 +1,8 @@
 #include "app_power.h"
 #include "gda6641.h"
 #include "efuse.h"
+#include "app_monitor.h"
+#include "delay.h"
 
 /*
     @brief      : 电源控制 (App 层): 15 路开关状态机 + DAC 限流换算与同步刷新
@@ -33,6 +35,10 @@
 
 /* 当前 15 路开关状态 (bit1~15 = ID1~15, 1=开) */
 static u16 s_switch_state;
+
+/* 每路最新 DAC 码值 / 限流 mA 缓存 (power_set_limit 填充, 供诊断打印) */
+static u16 s_dac_code[DEV_NUM];
+static u16 s_limit_ma[DEV_NUM];
 
 /*
     @brief      : 由设备映射构造电子保险丝句柄
@@ -191,6 +197,9 @@ void power_set_limit(dev_id_e id, u16 i_limit_ma)
     dev = &g_dev_map[id];
     d = power_limit_to_dac(dev->chip_type, i_limit_ma);
 
+    s_dac_code[id]  = d;
+    s_limit_ma[id]  = i_limit_ma;
+
     gda6641_write_input((gda6641_handle_t *)&g_dac_pin_map[dev->dac_idx],
                         dev->dac_ch, d);
 }
@@ -220,4 +229,147 @@ void power_flush_limits(void)
 u16 power_get_switch_state(void)
 {
     return s_switch_state;
+}
+
+/*
+    @brief      : 读取单路故障状态 (用于诊断打印/主动测试判定)
+    @note       : MAC5048: 直读 dev_map.fault_port[] (FAULT 开漏低有效, KF 双路
+                  任一拉低即故障); HQEF5016: 经 efuse_is_gok_goc() 读 GOK/GOC
+                  (任一拉低即故障/过流预警)
+    @param[in]  : id  设备 ID (1~15)
+    @param[out] : none
+    @retval     : 1 = 故障/过流报警; 0 = 正常或 ID 无效
+*/
+static u8 power_diag_read_fault(u16 id)
+{
+    const dev_map_t *dev;
+    efuse_handle_t  eh;
+    u8 j;
+
+    if (id <= DEV_INVALID || id >= DEV_NUM) {
+        return 0u;
+    }
+
+    dev = &g_dev_map[id];
+
+    if (dev->chip_type == CHIP_TYPE_HQEF5016) {
+        power_build_efuse_handle((dev_id_e)id, &eh);
+        return efuse_is_gok_goc(&eh);
+    }
+
+    /* MAC5048: 直读全部 FAULT 引脚, 任一低=故障 */
+    for (j = 0u; j < dev->fault_cnt && j < 2u; j++) {
+        if (dev->fault_port[j] != NULL &&
+            GPIO_ReadInputDataBit(dev->fault_port[j], dev->fault_pin[j]) == Bit_RESET) {
+            return 1u;
+        }
+    }
+    return 0u;
+}
+
+/*
+    @brief      : 联调诊断: 打印 15 路 EN 电平 / 故障引脚 / DAC 下发值
+    @note       : 1. 供 app_diag.c 周期调用 (CHIP_TEST_LOG=1 时);
+                   2. EN 电平读取实际引脚 (GPIO_ReadInputDataBit), 可核对接线;
+                   3. DAC: 打印 s_dac_code 缓存码值 + 换算电压 (V=code/65536×2.5)
+                      + 对应限流 mA (s_limit_ma 缓存);
+                   4. 该函数只读不改状态, 安全
+    @param[in]  : none
+    @param[out] : none
+    @retval     : none
+*/
+void power_diag_dump(void)
+{
+    u16 id;
+
+    TRACE_OUT(DEBUG_OUT, "[DIAG] switch_state=%04X\r\n", s_switch_state);
+    for (id = 1u; id < DEV_NUM; id++) {
+        const dev_map_t *dev = &g_dev_map[id];
+        u8 en_lvl = (GPIO_ReadInputDataBit(dev->en_port, dev->en_pin) != Bit_RESET) ? 1u : 0u;
+        u8 fault  = power_diag_read_fault(id);
+        u16 code  = s_dac_code[id];
+        s32 mv    = (s32)((float)code / 65536.0f * 2500.0f);   /* V_CLREF mV */
+
+        TRACE_OUT(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA)\r\n",
+                  id, (const char *)dev->name, en_lvl, fault,
+                  (unsigned)(dev->dac_idx + 14u),                  /* U14..U17 */
+                  'A' + (char)dev->dac_ch,
+                  code, (int)(mv / 1000), (int)(mv % 1000), s_limit_ma[id]);
+    }
+}
+
+/*
+    @brief      : 联调诊断: 15 路逐路主动上电测试 (真实供电!)
+    @note       : 1. 每路: 设测试限流 → 开电(清锁存) → 500ms 观测
+                     (期间轮询 monitor_task 保持采集不中断) → 读 EN/故障/实测电流
+                     → 关电 → 恢复原限流;
+                   2. 警告: 会真实给 28V/12V 输出上电, 确认负载可承受且无短路;
+                     测试限流 DIAG_TEST_I_LIMIT_MA 见 app_config.h;
+                   3. 建议在 bsp_iwdg_init 之前调用 (watchdog 未启动),
+                      或观测循环中喂狗; 由 app_diag.c 的 diag_init() 调用;
+                   4. 打印每路 PASS/FAIL: 成功=EN=1 且无故障且电流非 0;
+                     最后打印统计
+    @param[in]  : none
+    @param[out] : none
+    @retval     : none
+*/
+void power_diag_test_seq(void)
+{
+    u16 id;
+    u16 pass = 0u;
+    u16 fail = 0u;
+
+    TRACE_OUT(DEBUG_OUT, "[DIAG] === efuse active test begin (limit=%u mA) ===\r\n",
+              DIAG_TEST_I_LIMIT_MA);
+
+    for (id = 1u; id < DEV_NUM; id++) {
+        const dev_map_t *dev = &g_dev_map[id];
+        u16 prev_limit = s_limit_ma[id];
+        u8  en_lvl;
+        u8  fault;
+        u32 i;
+        u32 t;
+
+        /* 设测试限流并刷新 */
+        power_set_limit((dev_id_e)id, DIAG_TEST_I_LIMIT_MA);
+        power_flush_limits();
+
+        /* 开电 (bit 变化触发, efuse_clear_latch 清锁存+软启动) */
+        power_apply_state((u16)(1u << id));
+
+        /* 500ms 观测: 轮询 ADC 采集 + 周期换算, 保证电流数据新鲜 */
+        for (t = 0u; t < 500u; t++) {
+            monitor_task();
+            if ((t % 100u) == 99u) {
+                monitor_convert_all();
+            }
+            delay_ms(1);
+        }
+
+        en_lvl = (GPIO_ReadInputDataBit(dev->en_port, dev->en_pin) != Bit_RESET) ? 1u : 0u;
+        fault  = power_diag_read_fault(id);
+
+        /* 成功判定: EN=1 且无故障且实测电流非 0 */
+        if (en_lvl != 0u && fault == 0u && g_monitor.cur_ma[id] != 0u) {
+            pass++;
+        } else {
+            fail++;
+        }
+
+        TRACE_OUT(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u I=%u.%03uA  %s\r\n",
+                  id, (const char *)dev->name, en_lvl, fault,
+                  g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
+                  (en_lvl != 0u && fault == 0u && g_monitor.cur_ma[id] != 0u) ? "PASS" : "FAIL");
+
+        /* 关电并恢复原限流 */
+        power_apply_state(0u);
+        for (i = 0u; i < 100u; i++) {
+            monitor_task();
+            delay_ms(1);
+        }
+        power_set_limit((dev_id_e)id, prev_limit);
+        power_flush_limits();
+    }
+
+    TRACE_OUT(DEBUG_OUT, "[DIAG] === efuse active test done: pass=%u fail=%u ===\r\n", pass, fail);
 }

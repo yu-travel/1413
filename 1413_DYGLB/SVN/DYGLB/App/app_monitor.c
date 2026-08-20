@@ -541,3 +541,82 @@ u8 monitor_measure_to_protocol(dev_measure_t *m)
 
     return 1u;
 }
+
+/*
+    @brief      : 联调诊断: 打印 4 片 ADC 原始码→电压 + 15 设备物理量 + 辅助量 + 告警
+    @note       : 1. 供 app_diag.c 周期调用 (CHIP_TEST_LOG=1 时);
+                   2. RTT printf 无 %f 支持, 所有浮点以整数定标打印 (mV/0.1℃ 等);
+                   3. 电压/电流为 ADC 实测 (含分压/校准系数), 可直接对比万用表;
+                      温度: 普通设备用 adc_ain_t 槽, KF 用 g_t_map 子表 (KF1/KF2)
+    @param[in]  : none
+    @param[out] : none
+    @retval     : none
+*/
+void monitor_diag_dump(void)
+{
+    static const char *const s_ain_tag[4] = { "CH0(V)", "CH1(I)", "CH2(T)", "CH3(AUX)" };
+    static const char *const s_fault_name[6] = { "NORMAL", "COMP", "MOS", "OTP/OVP", "OC", "SCP" };
+    const s32 *raw[4]  = { s_raw_v, s_raw_i, s_raw_t, s_raw_ch3 };
+    const u16 *valid[4] = { &s_raw_v_valid, &s_raw_i_valid, &s_raw_t_valid, &s_raw_ch3_valid };
+    u8 i, a;
+    u16 id;
+
+    /* 4 片 ADC 各通道原始码 + 电压 (仅有效通道) */
+    for (i = 0u; i < 4u; i++) {
+        TRACE_OUT(DEBUG_OUT, "[DIAG] ADC %s: ", s_ain_tag[i]);
+        for (a = 0u; a < MON_AIN_NUM; a++) {
+            if ((*valid[i] & MON_ALARM_BIT(a)) == 0u) {
+                continue;
+            }
+            s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
+            TRACE_OUT(DEBUG_OUT, "a%02u=%ld(%d.%03dV) ", a, (long)raw[i][a],
+                      (int)(mv / 1000), (int)(mv % 1000));
+        }
+        TRACE_OUT(DEBUG_OUT, "\r\n");
+    }
+
+    /* 15 设备物理量 */
+    for (id = 1u; id < DEV_NUM; id++) {
+        s32 t10 = (s32)(g_monitor.temp_c[id] * 10.0f);
+        if (t10 < 0) {
+            t10 = -t10;
+        }
+        TRACE_OUT(DEBUG_OUT, "[DIAG] %02u %-8s V=%u.%03uV I=%u.%03uA T=%d.%dC\r\n",
+                  id, (const char *)g_dev_map[id].name,
+                  g_monitor.vol_mv[id] / 1000u, g_monitor.vol_mv[id] % 1000u,
+                  g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
+                  (int)(t10 / 10), (int)(t10 % 10));
+    }
+
+    /* CH3 辅助量: 4 轨电流 + 4 恒压源 + HAL + FAULT 译码 */
+    TRACE_OUT(DEBUG_OUT, "[DIAG] rails A: ");
+    for (i = 0u; i < 4u; i++) {
+        s32 ma = (s32)(g_monitor.rail_cur_a[i] * 1000.0f);
+        TRACE_OUT(DEBUG_OUT, "%s=%d.%03dA ", (i == 0u) ? "3V3" : (i == 1u) ? "12V0" : (i == 2u) ? "5V0" : "28V0",
+                  (int)(ma / 1000), (int)(ma % 1000));
+    }
+    TRACE_OUT(DEBUG_OUT, "\r\n");
+    TRACE_OUT(DEBUG_OUT, "[DIAG] rails V: ");
+    for (i = 0u; i < 4u; i++) {
+        s32 mv = (s32)(g_monitor.rail_vol_v[i] * 1000.0f);
+        TRACE_OUT(DEBUG_OUT, "%s=%d.%03dV ", (i == 0u) ? "28V0" : (i == 1u) ? "12V0" : (i == 2u) ? "5V0" : "3V3",
+                  (int)(mv / 1000), (int)(mv % 1000));
+    }
+    TRACE_OUT(DEBUG_OUT, "\r\n");
+    {
+        s32 h0 = (s32)(g_monitor.hal_ch0_v * 1000.0f);
+        s32 h1 = (s32)(g_monitor.hal_ch1_v * 1000.0f);
+        s32 f0 = (s32)(g_monitor.dygy_fault_v * 1000.0f);
+        s32 f1 = (s32)(g_monitor.gsdj_fault_v * 1000.0f);
+        TRACE_OUT(DEBUG_OUT, "[DIAG] HAL0=%d.%03dV HAL1=%d.%03dV DYGY=%d.%03dV(%s) GSDJ=%d.%03dV(%s)\r\n",
+                  (int)(h0 / 1000), (int)(h0 % 1000),
+                  (int)(h1 / 1000), (int)(h1 % 1000),
+                  (int)(f0 / 1000), (int)(f0 % 1000),
+                  (g_monitor.dygy_fault_type < 6u) ? s_fault_name[g_monitor.dygy_fault_type] : "?",
+                  (int)(f1 / 1000), (int)(f1 % 1000),
+                  (g_monitor.gsdj_fault_type < 6u) ? s_fault_name[g_monitor.gsdj_fault_type] : "?");
+    }
+
+    TRACE_OUT(DEBUG_OUT, "[DIAG] alarm=%04X aux_alarm=%02X adc_fault=%02X\r\n",
+              monitor_get_alarm_state(), g_monitor.aux_alarm, s_adc_fault_mask);
+}
