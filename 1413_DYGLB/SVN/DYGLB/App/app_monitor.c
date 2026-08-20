@@ -653,4 +653,36 @@ void monitor_diag_dump(void)
 
     TRACE_OUT_2(DEBUG_OUT, "[DIAG] alarm=%04X aux_alarm=%02X adc_fault=%02X\r\n",
               monitor_get_alarm_state(), g_monitor.aux_alarm, s_adc_fault_mask);
+
+    /* 校准后物理量 (g_monitor) - 已含 Flash k/b 校准 */
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === 校准后物理量 (g_monitor) ===\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] 设备实测:\r\n");
+    for (id = 1u; id < DEV_NUM; id++) {
+        s32 t10 = (s32)(g_monitor.temp_c[id] * 10.0f);
+        if (t10 < 0) {
+            t10 = -t10;
+        }
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG]   %02u %-8s V=%u.%03uV I=%u.%03uA T=%d.%dC\r\n",
+                  id, (const char *)g_dev_map[id].name,
+                  g_monitor.vol_mv[id] / 1000u, g_monitor.vol_mv[id] % 1000u,
+                  g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
+                  (int)(t10 / 10), (int)(t10 % 10));
+    }
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   KF1=%.1fC KF2=%.1fC\r\n",
+              g_monitor.kf1_temp_c, g_monitor.kf2_temp_c);
+
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] 辅助量:\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails A: 3V3=%.3fA 12V0=%.3fA 5V0=%.3fA 28V0=%.3fA\r\n",
+              g_monitor.rail_cur_a[0], g_monitor.rail_cur_a[1],
+              g_monitor.rail_cur_a[2], g_monitor.rail_cur_a[3]);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails V: 28V0=%.3fV 12V0=%.3fV 5V0=%.3fV 3V3=%.3fV\r\n",
+              g_monitor.rail_vol_v[0], g_monitor.rail_vol_v[1],
+              g_monitor.rail_vol_v[2], g_monitor.rail_vol_v[3]);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   HAL: CH0=%.3fV CH1=%.3fV\r\n",
+              g_monitor.hal_ch0_v, g_monitor.hal_ch1_v);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   FAULT: DYGY=%.3fV(%s) GSDJ=%.3fV(%s)\r\n",
+              g_monitor.dygy_fault_v,
+              (g_monitor.dygy_fault_type < 6u) ? s_fault_name[g_monitor.dygy_fault_type] : "?",
+              g_monitor.gsdj_fault_v,
+              (g_monitor.gsdj_fault_type < 6u) ? s_fault_name[g_monitor.gsdj_fault_type] : "?");
 }

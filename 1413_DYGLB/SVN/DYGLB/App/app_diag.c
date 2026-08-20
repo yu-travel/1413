@@ -68,8 +68,11 @@ void diag_init(void)
 */
 void diag_task(void)
 {
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] ===== ADC Raw Sampling =====\r\n");
     monitor_diag_dump();
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] ===== Power DAC & Pin Status =====\r\n");
     power_diag_dump();
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] ===== XCA4001 Alert =====\r\n");
     diag_xca_dump();
 }
 

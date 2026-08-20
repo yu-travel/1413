@@ -60,7 +60,7 @@
 #define TASK_UPLOAD_MS       100         /* 100ms 上传帧组包发送 (MCU->FPGA) */
 #define TASK_PROTO_MS        200         /* 200ms 下发帧收发与指令消费 (FPGA->MCU) */
 #define TASK_HEARTBEAT_MS    1000        /* 1000ms RTT 心跳日志 (新板无调试 LED) */
-#define TASK_DIAG_MS         1000        /* 1000ms 芯片联调诊断日志周期 (app_diag.c) */
+#define TASK_DIAG_MS         5000        /* 5000ms 芯片联调诊断日志周期 (app_diag.c) */
 
 /* ---------------- 联调诊断开关 ---------------- */
 #define ADC_REG_DUMP_TEST    1           /* 1=上电 dump 4 片 LC1258 全部寄存器默认值 (RTT 输出, 诊断后置 0) */

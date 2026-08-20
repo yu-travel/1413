@@ -290,11 +290,14 @@ void power_diag_dump(void)
         u16 code  = s_dac_code[id];
         s32 mv    = (s32)((float)code / 65536.0f * 2500.0f);   /* V_CLREF mV */
 
-        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA)\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA) 实测: I=%u.%03uA V=%u.%03uV T=%.1fC\r\n",
                   id, (const char *)dev->name, en_lvl, fault,
                   (unsigned)(dev->dac_idx + 14u),                  /* U14..U17 */
                   'A' + (char)dev->dac_ch,
-                  code, (int)(mv / 1000), (int)(mv % 1000), s_limit_ma[id]);
+                  code, (int)(mv / 1000), (int)(mv % 1000), s_limit_ma[id],
+                  g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
+                  g_monitor.vol_mv[id] / 1000u, g_monitor.vol_mv[id] % 1000u,
+                  g_monitor.temp_c[id]);
     }
 }
 
@@ -356,9 +359,11 @@ void power_diag_test_seq(void)
             fail++;
         }
 
-        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u I=%u.%03uA  %s\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u I=%u.%03uA V=%u.%03uV T=%.1fC  %s\r\n",
                   id, (const char *)dev->name, en_lvl, fault,
                   g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
+                  g_monitor.vol_mv[id] / 1000u, g_monitor.vol_mv[id] % 1000u,
+                  g_monitor.temp_c[id],
                   (en_lvl != 0u && fault == 0u && g_monitor.cur_ma[id] != 0u) ? "PASS" : "FAIL");
 
         /* 关电并恢复原限流 */
