@@ -73,6 +73,9 @@ typedef unsigned long long u64;
 
 
 #define myprintf(sFormat, ...)              SEGGER_RTT_printf(0, sFormat, ##__VA_ARGS__)
+#define myprintf_1(sFormat, ...)              SEGGER_RTT_printf(1, sFormat, ##__VA_ARGS__)
+#define myprintf_2(sFormat, ...)              SEGGER_RTT_printf(2, sFormat, ##__VA_ARGS__)
+
 
 
 #define PRINTF(...)         \
@@ -87,6 +90,14 @@ typedef unsigned long long u64;
             myprintf(##__VA_ARGS__);   \
         }                          \
     } while(0)
+
+#define TRACE_OUT_2(flag, ...)       \
+    do {                           \
+        if(flag) {                 \
+            myprintf_2(##__VA_ARGS__);   \
+        }                          \
+    } while(0)
+		
 #else
 #define TRACE_OUT(flag, ...)        
 #endif

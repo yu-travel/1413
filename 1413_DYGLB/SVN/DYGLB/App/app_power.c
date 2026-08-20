@@ -282,7 +282,7 @@ void power_diag_dump(void)
 {
     u16 id;
 
-    TRACE_OUT(DEBUG_OUT, "[DIAG] switch_state=%04X\r\n", s_switch_state);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] switch_state=%04X\r\n", s_switch_state);
     for (id = 1u; id < DEV_NUM; id++) {
         const dev_map_t *dev = &g_dev_map[id];
         u8 en_lvl = (GPIO_ReadInputDataBit(dev->en_port, dev->en_pin) != Bit_RESET) ? 1u : 0u;
@@ -290,7 +290,7 @@ void power_diag_dump(void)
         u16 code  = s_dac_code[id];
         s32 mv    = (s32)((float)code / 65536.0f * 2500.0f);   /* V_CLREF mV */
 
-        TRACE_OUT(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA)\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA)\r\n",
                   id, (const char *)dev->name, en_lvl, fault,
                   (unsigned)(dev->dac_idx + 14u),                  /* U14..U17 */
                   'A' + (char)dev->dac_ch,
@@ -319,7 +319,7 @@ void power_diag_test_seq(void)
     u16 pass = 0u;
     u16 fail = 0u;
 
-    TRACE_OUT(DEBUG_OUT, "[DIAG] === efuse active test begin (limit=%u mA) ===\r\n",
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === efuse active test begin (limit=%u mA) ===\r\n",
               DIAG_TEST_I_LIMIT_MA);
 
     for (id = 1u; id < DEV_NUM; id++) {
@@ -356,7 +356,7 @@ void power_diag_test_seq(void)
             fail++;
         }
 
-        TRACE_OUT(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u I=%u.%03uA  %s\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s EN=%u FLT=%u I=%u.%03uA  %s\r\n",
                   id, (const char *)dev->name, en_lvl, fault,
                   g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
                   (en_lvl != 0u && fault == 0u && g_monitor.cur_ma[id] != 0u) ? "PASS" : "FAIL");
@@ -371,5 +371,5 @@ void power_diag_test_seq(void)
         power_flush_limits();
     }
 
-    TRACE_OUT(DEBUG_OUT, "[DIAG] === efuse active test done: pass=%u fail=%u ===\r\n", pass, fail);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === efuse active test done: pass=%u fail=%u ===\r\n", pass, fail);
 }

@@ -563,16 +563,16 @@ void monitor_diag_dump(void)
 
     /* 4 片 ADC 各通道原始码 + 电压 (仅有效通道) */
     for (i = 0u; i < 4u; i++) {
-        TRACE_OUT(DEBUG_OUT, "[DIAG] ADC %s: ", s_ain_tag[i]);
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] ADC %s: ", s_ain_tag[i]);
         for (a = 0u; a < MON_AIN_NUM; a++) {
             if ((*valid[i] & MON_ALARM_BIT(a)) == 0u) {
                 continue;
             }
             s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
-            TRACE_OUT(DEBUG_OUT, "a%02u=%ld(%d.%03dV) ", a, (long)raw[i][a],
+            TRACE_OUT_2(DEBUG_OUT, "a%02u=%ld(%d.%03dV) ", a, (long)raw[i][a],
                       (int)(mv / 1000), (int)(mv % 1000));
         }
-        TRACE_OUT(DEBUG_OUT, "\r\n");
+        TRACE_OUT_2(DEBUG_OUT, "\r\n");
     }
 
     /* 15 设备物理量 */
@@ -581,7 +581,7 @@ void monitor_diag_dump(void)
         if (t10 < 0) {
             t10 = -t10;
         }
-        TRACE_OUT(DEBUG_OUT, "[DIAG] %02u %-8s V=%u.%03uV I=%u.%03uA T=%d.%dC\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %02u %-8s V=%u.%03uV I=%u.%03uA T=%d.%dC\r\n",
                   id, (const char *)g_dev_map[id].name,
                   g_monitor.vol_mv[id] / 1000u, g_monitor.vol_mv[id] % 1000u,
                   g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
@@ -589,26 +589,26 @@ void monitor_diag_dump(void)
     }
 
     /* CH3 辅助量: 4 轨电流 + 4 恒压源 + HAL + FAULT 译码 */
-    TRACE_OUT(DEBUG_OUT, "[DIAG] rails A: ");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] rails A: ");
     for (i = 0u; i < 4u; i++) {
         s32 ma = (s32)(g_monitor.rail_cur_a[i] * 1000.0f);
-        TRACE_OUT(DEBUG_OUT, "%s=%d.%03dA ", (i == 0u) ? "3V3" : (i == 1u) ? "12V0" : (i == 2u) ? "5V0" : "28V0",
+        TRACE_OUT_2(DEBUG_OUT, "%s=%d.%03dA ", (i == 0u) ? "3V3" : (i == 1u) ? "12V0" : (i == 2u) ? "5V0" : "28V0",
                   (int)(ma / 1000), (int)(ma % 1000));
     }
-    TRACE_OUT(DEBUG_OUT, "\r\n");
-    TRACE_OUT(DEBUG_OUT, "[DIAG] rails V: ");
+    TRACE_OUT_2(DEBUG_OUT, "\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] rails V: ");
     for (i = 0u; i < 4u; i++) {
         s32 mv = (s32)(g_monitor.rail_vol_v[i] * 1000.0f);
-        TRACE_OUT(DEBUG_OUT, "%s=%d.%03dV ", (i == 0u) ? "28V0" : (i == 1u) ? "12V0" : (i == 2u) ? "5V0" : "3V3",
+        TRACE_OUT_2(DEBUG_OUT, "%s=%d.%03dV ", (i == 0u) ? "28V0" : (i == 1u) ? "12V0" : (i == 2u) ? "5V0" : "3V3",
                   (int)(mv / 1000), (int)(mv % 1000));
     }
-    TRACE_OUT(DEBUG_OUT, "\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "\r\n");
     {
         s32 h0 = (s32)(g_monitor.hal_ch0_v * 1000.0f);
         s32 h1 = (s32)(g_monitor.hal_ch1_v * 1000.0f);
         s32 f0 = (s32)(g_monitor.dygy_fault_v * 1000.0f);
         s32 f1 = (s32)(g_monitor.gsdj_fault_v * 1000.0f);
-        TRACE_OUT(DEBUG_OUT, "[DIAG] HAL0=%d.%03dV HAL1=%d.%03dV DYGY=%d.%03dV(%s) GSDJ=%d.%03dV(%s)\r\n",
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] HAL0=%d.%03dV HAL1=%d.%03dV DYGY=%d.%03dV(%s) GSDJ=%d.%03dV(%s)\r\n",
                   (int)(h0 / 1000), (int)(h0 % 1000),
                   (int)(h1 / 1000), (int)(h1 % 1000),
                   (int)(f0 / 1000), (int)(f0 % 1000),
@@ -617,6 +617,6 @@ void monitor_diag_dump(void)
                   (g_monitor.gsdj_fault_type < 6u) ? s_fault_name[g_monitor.gsdj_fault_type] : "?");
     }
 
-    TRACE_OUT(DEBUG_OUT, "[DIAG] alarm=%04X aux_alarm=%02X adc_fault=%02X\r\n",
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] alarm=%04X aux_alarm=%02X adc_fault=%02X\r\n",
               monitor_get_alarm_state(), g_monitor.aux_alarm, s_adc_fault_mask);
 }

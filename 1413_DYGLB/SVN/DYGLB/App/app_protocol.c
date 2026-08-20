@@ -336,7 +336,7 @@ u8 protocol_read_task(void)
     /* 窗口耗尽: 若从未出现候选记录 NO_HEAD, 否则保留最近一次失败码 */
     if (candidate_found == 0u) {
         g_proto_last_err = PROTO_ERR_NO_HEAD;
-        TRACE_OUT(DEBUG_OUT, "protocol: no down frame head in rx window\r\n");
+//        TRACE_OUT(DEBUG_OUT, "protocol: no down frame head in rx window\r\n");
     }
     g_proto_fresh = 0u;
     return 0u;

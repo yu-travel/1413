@@ -27,12 +27,12 @@ static void diag_xca_dump(void)
     };
     u8 i;
 
-    TRACE_OUT(DEBUG_OUT, "[DIAG] XCA4001 ALERT: ");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] XCA4001 ALERT: ");
     for (i = 0u; i < 4u; i++) {
-        TRACE_OUT(DEBUG_OUT, "%s=%s ", s_name[i],
+        TRACE_OUT_2(DEBUG_OUT, "%s=%s ", s_name[i],
                   (xca4001_alert_active(&h[i]) != 0u) ? "ALARM" : "ok");
     }
-    TRACE_OUT(DEBUG_OUT, "\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "\r\n");
 }
 
 /*
@@ -46,10 +46,14 @@ static void diag_xca_dump(void)
 */
 void diag_init(void)
 {
+    /* 初始化 SEGGER RTT 通道 2 (buffer 2), 仅在 CHIP_TEST_LOG=1 时使用 */
+    static char s_diag_rtt_buf[2048];
+    SEGGER_RTT_ConfigUpBuffer(2, "DIAG", s_diag_rtt_buf, sizeof(s_diag_rtt_buf), SEGGER_RTT_MODE_NO_BLOCK_TRIM);
+
 #if DIAG_EFUSE_ACTIVE_TEST
     power_diag_test_seq();
 #else
-    TRACE_OUT(DEBUG_OUT, "[DIAG] efuse active test disabled (DIAG_EFUSE_ACTIVE_TEST=0)\r\n");
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] efuse active test disabled (DIAG_EFUSE_ACTIVE_TEST=0)\r\n");
 #endif
 }
 
