@@ -24,10 +24,10 @@
 
 ### 修改后
 ```
-[DIAG] U2(ADC_CH0(V)): DTJ_V=12345(1.234V) SFXJ1_V=23456(2.345V) SFXJ2_V=34567(3.456V) ...
-[DIAG] U5(ADC_CH1(I)): HWXJ3_I=... DTJ_I=... SFXJ2_I=... ...
-[DIAG] U8(ADC_CH2(T)): WAOXJ_TEMP=... DYGY_TEMP=... KF2_TEMP=... KF1_TEMP=... ...
-[DIAG] U11(ADC_CH3(AUX)): 3V3_CUR=... 12V0_CUR=... 5V0_CUR=... 28V0_CUR=... HAL0_V=... ...
+[DIAG] U2(ADC_CH0(V)): a00(DTJ_V)=12345(1.234V) a01(SFXJ1_V)=23456(2.345V) a02(SFXJ2_V)=34567(3.456V) ...
+[DIAG] U5(ADC_CH1(I)): a00(HWXJ3_I)=... a01(DTJ_I)=... a02(SFXJ2_I)=... ...
+[DIAG] U8(ADC_CH2(T)): a00(WAOXJ_TEMP)=... a01(DYGY_TEMP)=... a06(KF2_TEMP)=... a15(KF1_TEMP)=... ...
+[DIAG] U11(ADC_CH3(AUX)): a00(3V3_CUR)=... a01(12V0_CUR)=... a10(DYGY_FLT)=... a11(GSDJ_FLT)=... ...
 ```
 
 ---
@@ -133,7 +133,7 @@ for (i = 0u; i < 4u; i++) {
     for (a = 0u; a < MON_AIN_NUM; a++) {
         if ((*valid[i] & MON_ALARM_BIT(a)) == 0u) continue;
         s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
-        TRACE_OUT_2(DEBUG_OUT, "%s=%ld(%d.%03dV) ", name_tbl[i][a], (long)raw[i][a], ...);
+        TRACE_OUT_2(DEBUG_OUT, "a%02u(%s)=%ld(%d.%03dV) ", a, name_tbl[i][a], (long)raw[i][a], ...);
     }
     TRACE_OUT_2(DEBUG_OUT, "\r\n");
 }
@@ -155,4 +155,5 @@ for (i = 0u; i < 4u; i++) {
 
 | 版本 | 日期 | 修改人 | 说明 |
 |------|------|--------|------|
+| 1.1  | 2026-08-20 | - | 增加通道号前缀 `a%02u()`，输出格式为 `a00(DTJ_V)=...` |
 | 1.0  | 2026-08-20 | - | 初版：ADC 位号 + 通道名称输出 |

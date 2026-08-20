@@ -603,7 +603,7 @@ void monitor_diag_dump(void)
                 continue;
             }
             s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
-            TRACE_OUT_2(DEBUG_OUT, "%s=%ld(%d.%03dV) ", name_tbl[i][a], (long)raw[i][a],
+            TRACE_OUT_2(DEBUG_OUT, "a%02u(%s)=%ld(%d.%03dV) ", a, name_tbl[i][a], (long)raw[i][a],
                       (int)(mv / 1000), (int)(mv % 1000));
         }
         TRACE_OUT_2(DEBUG_OUT, "\r\n");
