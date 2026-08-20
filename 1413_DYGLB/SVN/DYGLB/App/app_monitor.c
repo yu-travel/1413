@@ -414,9 +414,9 @@ void monitor_init(void)
         }
     }
 
-    if (bsp_flash_cal_read(s_k, s_b, CAL_NUM) == 0u) {
-        TRACE_OUT(DEBUG_OUT, "monitor: flash cal read fail, use k=1 b=0\r\n");
-    }
+//    if (bsp_flash_cal_read(s_k, s_b, CAL_NUM) == 0u) {
+//        TRACE_OUT(DEBUG_OUT, "monitor: flash cal read fail, use k=1 b=0\r\n");
+//    }
 }
 
 /*
@@ -654,7 +654,7 @@ void monitor_diag_dump(void)
     TRACE_OUT_2(DEBUG_OUT, "[DIAG] alarm=%04X aux_alarm=%02X adc_fault=%02X\r\n",
               monitor_get_alarm_state(), g_monitor.aux_alarm, s_adc_fault_mask);
 
-    /* 校准后物理量 (g_monitor) - 已含 Flash k/b 校准 */
+    /* 校准后物理量 (g_monitor) - 已含 Flash k/b 校准, 浮点以整数定标打印 (RTT 无 %f 支持) */
     TRACE_OUT_2(DEBUG_OUT, "[DIAG] === 校准后物理量 (g_monitor) ===\r\n");
     TRACE_OUT_2(DEBUG_OUT, "[DIAG] 设备实测:\r\n");
     for (id = 1u; id < DEV_NUM; id++) {
@@ -668,21 +668,53 @@ void monitor_diag_dump(void)
                   g_monitor.cur_ma[id] / 1000u, g_monitor.cur_ma[id] % 1000u,
                   (int)(t10 / 10), (int)(t10 % 10));
     }
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   KF1=%.1fC KF2=%.1fC\r\n",
-              g_monitor.kf1_temp_c, g_monitor.kf2_temp_c);
+    {
+        s32 kf1_t10 = (s32)(g_monitor.kf1_temp_c * 10.0f);
+        s32 kf2_t10 = (s32)(g_monitor.kf2_temp_c * 10.0f);
+        if (kf1_t10 < 0) kf1_t10 = -kf1_t10;
+        if (kf2_t10 < 0) kf2_t10 = -kf2_t10;
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG]   KF1=%d.%dC KF2=%d.%dC\r\n",
+                  (int)(kf1_t10 / 10), (int)(kf1_t10 % 10),
+                  (int)(kf2_t10 / 10), (int)(kf2_t10 % 10));
+    }
 
     TRACE_OUT_2(DEBUG_OUT, "[DIAG] 辅助量:\r\n");
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails A: 3V3=%.3fA 12V0=%.3fA 5V0=%.3fA 28V0=%.3fA\r\n",
-              g_monitor.rail_cur_a[0], g_monitor.rail_cur_a[1],
-              g_monitor.rail_cur_a[2], g_monitor.rail_cur_a[3]);
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails V: 28V0=%.3fV 12V0=%.3fV 5V0=%.3fV 3V3=%.3fV\r\n",
-              g_monitor.rail_vol_v[0], g_monitor.rail_vol_v[1],
-              g_monitor.rail_vol_v[2], g_monitor.rail_vol_v[3]);
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   HAL: CH0=%.3fV CH1=%.3fV\r\n",
-              g_monitor.hal_ch0_v, g_monitor.hal_ch1_v);
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   FAULT: DYGY=%.3fV(%s) GSDJ=%.3fV(%s)\r\n",
-              g_monitor.dygy_fault_v,
-              (g_monitor.dygy_fault_type < 6u) ? s_fault_name[g_monitor.dygy_fault_type] : "?",
-              g_monitor.gsdj_fault_v,
-              (g_monitor.gsdj_fault_type < 6u) ? s_fault_name[g_monitor.gsdj_fault_type] : "?");
+    {
+        s32 ma0 = (s32)(g_monitor.rail_cur_a[0] * 1000.0f);
+        s32 ma1 = (s32)(g_monitor.rail_cur_a[1] * 1000.0f);
+        s32 ma2 = (s32)(g_monitor.rail_cur_a[2] * 1000.0f);
+        s32 ma3 = (s32)(g_monitor.rail_cur_a[3] * 1000.0f);
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails A: 3V3=%d.%03dA 12V0=%d.%03dA 5V0=%d.%03dA 28V0=%d.%03dA\r\n",
+                  (int)(ma0 / 1000), (int)(ma0 % 1000),
+                  (int)(ma1 / 1000), (int)(ma1 % 1000),
+                  (int)(ma2 / 1000), (int)(ma2 % 1000),
+                  (int)(ma3 / 1000), (int)(ma3 % 1000));
+    }
+    {
+        s32 mv0 = (s32)(g_monitor.rail_vol_v[0] * 1000.0f);
+        s32 mv1 = (s32)(g_monitor.rail_vol_v[1] * 1000.0f);
+        s32 mv2 = (s32)(g_monitor.rail_vol_v[2] * 1000.0f);
+        s32 mv3 = (s32)(g_monitor.rail_vol_v[3] * 1000.0f);
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails V: 28V0=%d.%03dV 12V0=%d.%03dV 5V0=%d.%03dV 3V3=%d.%03dV\r\n",
+                  (int)(mv0 / 1000), (int)(mv0 % 1000),
+                  (int)(mv1 / 1000), (int)(mv1 % 1000),
+                  (int)(mv2 / 1000), (int)(mv2 % 1000),
+                  (int)(mv3 / 1000), (int)(mv3 % 1000));
+    }
+    {
+        s32 h0 = (s32)(g_monitor.hal_ch0_v * 1000.0f);
+        s32 h1 = (s32)(g_monitor.hal_ch1_v * 1000.0f);
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG]   HAL: CH0=%d.%03dV CH1=%d.%03dV\r\n",
+                  (int)(h0 / 1000), (int)(h0 % 1000),
+                  (int)(h1 / 1000), (int)(h1 % 1000));
+    }
+    {
+        s32 f0 = (s32)(g_monitor.dygy_fault_v * 1000.0f);
+        s32 f1 = (s32)(g_monitor.gsdj_fault_v * 1000.0f);
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG]   FAULT: DYGY=%d.%03dV(%s) GSDJ=%d.%03dV(%s)\r\n",
+                  (int)(f0 / 1000), (int)(f0 % 1000),
+                  (g_monitor.dygy_fault_type < 6u) ? s_fault_name[g_monitor.dygy_fault_type] : "?",
+                  (int)(f1 / 1000), (int)(f1 % 1000),
+                  (g_monitor.gsdj_fault_type < 6u) ? s_fault_name[g_monitor.gsdj_fault_type] : "?");
+    }
 }

@@ -30,6 +30,8 @@
 
 ## 输出结构示例 (每 5 秒一次)
 
+> **注意**：SEGGER RTT printf 不支持 `%f` 浮点格式，所有浮点值在打印前以整数定标 (mV/mA/0.1℃) 输出。
+
 ```
 [DIAG] ===== ADC Raw Sampling =====
 [DIAG] U2(ADC_CH0(V)): a00(DTJ_V)=12345(1.234V) a01(SFXJ1_V)=23456(2.345V) ...
@@ -43,20 +45,20 @@
 
 [DIAG] === 校准后物理量 (g_monitor) ===
 [DIAG] 设备实测:
-[DIAG]   01 28V_KF   V=28.123V I=1.234A T=25.0C
-[DIAG]   02 28V_DTJ  V=28.001V I=0.500A T=24.5C
+[DIAG]   01 28V_KF   V=28123mV I=1234mA T=25.0C
+[DIAG]   02 28V_DTJ  V=28001mV I=500mA T=24.5C
 [DIAG]   ...
 [DIAG]   KF1=25.1C KF2=24.8C
 [DIAG] 辅助量:
-[DIAG]   rails A: 3V3=0.100A 12V0=0.500A 5V0=0.200A 28V0=1.000A
-[DIAG]   rails V: 28V0=28.1V 12V0=12.0V 5V0=5.0V 3V3=3.3V
-[DIAG]   HAL: CH0=1.200V CH1=0.800V
-[DIAG]   FAULT: DYGY=0.100V(NORMAL) GSDJ=0.100V(NORMAL)
+[DIAG]   rails A: 3V3=100mA 12V0=500mA 5V0=200mA 28V0=1000mA
+[DIAG]   rails V: 28V0=28100mV 12V0=12000mV 5V0=5000mV 3V3=3300mV
+[DIAG]   HAL: CH0=1200mV CH1=800mV
+[DIAG]   FAULT: DYGY=100mV(NORMAL) GSDJ=100mV(NORMAL)
 
 [DIAG] ===== Power DAC & Pin Status =====
 [DIAG] switch_state=0001
-[DIAG] 01 28V_KF   EN=1 FLT=0 DAC(U17.B)=32768(1.250V,1000mA) 实测: I=1.000A V=28.000V T=25.0C
-[DIAG] 02 28V_DTJ  EN=0 FLT=0 DAC(U14.D)=0(0.000V,0mA) 实测: I=0.000A V=0.000V T=24.5C
+[DIAG] 01 28V_KF   EN=1 FLT=0 DAC(U17.B)=32768(1250mV,1000mA) 实测: I=1000mA V=28000mV T=25.0C
+[DIAG] 02 28V_DTJ  EN=0 FLT=0 DAC(U14.D)=0(0mV,0mA) 实测: I=0mA V=0mV T=24.5C
 ...
 
 [DIAG] ===== XCA4001 Alert =====
@@ -152,23 +154,56 @@
 
 ## 关键代码片段
 
-### monitor_diag_dump() - 新增校准段
+### monitor_diag_dump() - 新增校准段 (整数定标，RTT 无 %f 支持)
 ```c
 TRACE_OUT_2(DEBUG_OUT, "[DIAG] === 校准后物理量 (g_monitor) ===\r\n");
 TRACE_OUT_2(DEBUG_OUT, "[DIAG] 设备实测:\r\n");
 for (id = 1u; id < DEV_NUM; id++) {
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   %02u %-8s V=%u.%03uV I=%u.%03uA T=%.1fC\r\n", ...);
+    s32 t10 = (s32)(g_monitor.temp_c[id] * 10.0f);
+    if (t10 < 0) t10 = -t10;
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   %02u %-8s V=%u.%03uV I=%u.%03uA T=%d.%dC\r\n",
+              id, g_dev_map[id].name,
+              g_monitor.vol_mv[id]/1000, g_monitor.vol_mv[id]%1000,
+              g_monitor.cur_ma[id]/1000, g_monitor.cur_ma[id]%1000,
+              t10/10, t10%10);
 }
-TRACE_OUT_2(DEBUG_OUT, "[DIAG]   KF1=%.1fC KF2=%.1fC\r\n", g_monitor.kf1_temp_c, g_monitor.kf2_temp_c);
+{
+    s32 kf1_t10 = (s32)(g_monitor.kf1_temp_c * 10.0f);
+    s32 kf2_t10 = (s32)(g_monitor.kf2_temp_c * 10.0f);
+    if (kf1_t10 < 0) kf1_t10 = -kf1_t10;
+    if (kf2_t10 < 0) kf2_t10 = -kf2_t10;
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   KF1=%d.%dC KF2=%d.%dC\r\n",
+              kf1_t10/10, kf1_t10%10, kf2_t10/10, kf2_t10%10);
+}
 
 TRACE_OUT_2(DEBUG_OUT, "[DIAG] 辅助量:\r\n");
-TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails A: 3V3=%.3fA 12V0=%.3fA 5V0=%.3fA 28V0=%.3fA\r\n", ...);
-TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails V: 28V0=%.3fV 12V0=%.3fV 5V0=%.3fV 3V3=%.3fV\r\n", ...);
-TRACE_OUT_2(DEBUG_OUT, "[DIAG]   HAL: CH0=%.3fV CH1=%.3fV\r\n", g_monitor.hal_ch0_v, g_monitor.hal_ch1_v);
-TRACE_OUT_2(DEBUG_OUT, "[DIAG]   FAULT: DYGY=%.3fV(%s) GSDJ=%.3fV(%s)\r\n", ...);
+{
+    s32 ma0 = (s32)(g_monitor.rail_cur_a[0] * 1000.0f);
+    // ... ma1/ma2/ma3 同理
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails A: 3V3=%d.%03dA 12V0=%d.%03dA 5V0=%d.%03dA 28V0=%d.%03dA\r\n",
+              ma0/1000, ma0%1000, ma1/1000, ma1%1000, ma2/1000, ma2%1000, ma3/1000, ma3%1000);
+}
+{
+    s32 mv0 = (s32)(g_monitor.rail_vol_v[0] * 1000.0f);
+    // ... mv1/mv2/mv3 同理
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   rails V: 28V0=%d.%03dV 12V0=%d.%03dV 5V0=%d.%03dV 3V3=%d.%03dV\r\n",
+              mv0/1000, mv0%1000, mv1/1000, mv1%1000, mv2/1000, mv2%1000, mv3/1000, mv3%1000);
+}
+{
+    s32 h0 = (s32)(g_monitor.hal_ch0_v * 1000.0f);
+    s32 h1 = (s32)(g_monitor.hal_ch1_v * 1000.0f);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   HAL: CH0=%d.%03dV CH1=%d.%03dV\r\n",
+              h0/1000, h0%1000, h1/1000, h1%1000);
+}
+{
+    s32 f0 = (s32)(g_monitor.dygy_fault_v * 1000.0f);
+    s32 f1 = (s32)(g_monitor.gsdj_fault_v * 1000.0f);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG]   FAULT: DYGY=%d.%03dV(%s) GSDJ=%d.%03dV(%s)\r\n",
+              f0/1000, f0%1000, fault_name, f1/1000, f1%1000, fault_name);
+}
 ```
 
-### power_diag_dump() - 每行追加实测值
+### power_diag_dump() - 每行追加实测值 (整数定标)
 ```c
 TRACE_OUT_2(DEBUG_OUT,
     "[DIAG] %02u %-8s EN=%u FLT=%u DAC(U%u.%c)=%u(%d.%03dV,%umA) 实测: I=%u.%03uA V=%u.%03uV T=%.1fC\r\n",
@@ -180,7 +215,7 @@ TRACE_OUT_2(DEBUG_OUT,
     g_monitor.temp_c[id]);
 ```
 
-### power_diag_test_seq() - 增补电压/温度
+### power_diag_test_seq() - 增补电压/温度 (整数定标)
 ```c
 TRACE_OUT_2(DEBUG_OUT,
     "[DIAG] %02u %-8s EN=%u FLT=%u I=%u.%03uA V=%u.%03uV T=%.1fC  %s\r\n",
@@ -230,10 +265,11 @@ void diag_task(void)
 1. **RTT 查看**：J-Link RTT Viewer 选择 "DIAG" 通道 (up-buffer 2)
 2. **输出频率**：`TASK_DIAG_MS = 5000ms` (5 秒)
 3. **缓冲区**：RTT buffer 2 分配 2048 字节 (`s_diag_rtt_buf`)，5s 周期下足够
-4. **两段式核对**：
+4. **⚠ RTT printf 无 %f 支持**：嵌入式 SEGGER RTT 精简版裁剪了浮点格式化，**严禁使用 `%f`/`%.1f`/`%.3f`**，必须在代码中将浮点转为整数定标 (mV/mA/0.1℃) 后打印
+5. **两段式核对**：
    - 原始段：核对 ADC 前端链路 (原始码 → V_adc)、DAC 码值、引脚电平
    - 校准段：核对最终上报值 (mV/mA/℃)、功率路电流电压
-5. **KF 双温度**：KF 使用同一片 ADC (U8) 的 AIN6 (KF2_TEMP) 和 AIN15 (KF1_TEMP)
+6. **KF 双温度**：KF 使用同一片 ADC (U8) 的 AIN6 (KF2_TEMP) 和 AIN15 (KF1_TEMP)
 
 ---
 
@@ -241,6 +277,7 @@ void diag_task(void)
 
 | 版本 | 日期 | 修改人 | 说明 |
 |------|------|--------|------|
+| 2.1  | 2026-08-20 | - | 修复 RTT printf 无 %f 支持导致的 HardFault，改用整数定标 (mV/mA/0.1℃) |
 | 2.0  | 2026-08-20 | - | 两段式输出：原始采样+校准物理量；TASK_DIAG_MS=5s；模块分隔符 |
 | 1.1  | 2026-08-20 | - | 增加通道号前缀 `a%02u()`，输出格式为 `a00(DTJ_V)=...` |
 | 1.0  | 2026-08-20 | - | 初版：ADC 位号 + 通道名称输出 |
