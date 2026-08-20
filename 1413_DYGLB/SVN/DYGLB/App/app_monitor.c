@@ -556,20 +556,54 @@ void monitor_diag_dump(void)
 {
     static const char *const s_ain_tag[4] = { "CH0(V)", "CH1(I)", "CH2(T)", "CH3(AUX)" };
     static const char *const s_fault_name[6] = { "NORMAL", "COMP", "MOS", "OTP/OVP", "OC", "SCP" };
+    static const char *const s_adc_refdes[4] = { "U2", "U5", "U8", "U11" };
+    static const char *const s_adc_func[4]   = { "电压", "电流", "温度", "辅助" };
+
+    /* ADC_CH0 (U2) 电压通道名: 索引 = AIN */
+    static const char *const s_ch0_name[16] = {
+        "DTJ_V",   "SFXJ1_V", "SFXJ2_V", "HWXJ3_V", "HJJC3_V", "DYGY_V",
+        "WAOXJ_V", "GSDJ_V",  "KF_V",    "PD_V",    "HJJC1_V", "QGSJ_V",
+        "HWXJ2_V", "HWXJ1_V", "HJJC2_V", "---"
+    };
+
+    /* ADC_CH1 (U5) 电流通道名: 索引 = AIN */
+    static const char *const s_ch1_name[16] = {
+        "HWXJ3_I", "DTJ_I",   "SFXJ2_I", "HJJC3_I", "SFXJ1_I", "WAOXJ_I",
+        "DYGY_I",  "GSDJ_I",  "HJJC2_I", "HWXJ1_I", "HWXJ2_I", "QGSJ_I",
+        "HJJC1_I", "PD_I",    "KF_I",    "---"
+    };
+
+    /* ADC_CH2 (U8) 温度通道名: 索引 = AIN, 对应 g_t_map[] */
+    static const char *const s_ch2_name[16] = {
+        "WAOXJ_TEMP", "DYGY_TEMP", "SFXJ1_TEMP", "HJJC3_TEMP", "SFXJ2_TEMP",
+        "DTJ_TEMP",   "KF2_TEMP",  "HWXJ3_TEMP", "QGSJ_TEMP",  "HJJC1_TEMP",
+        "HWXJ1_TEMP", "HWXJ2_TEMP", "HJJC2_TEMP", "PD_TEMP",    "GSDJ_TEMP",
+        "KF1_TEMP"
+    };
+
+    /* ADC_CH3 (U11) 辅助通道名: 索引 = AIN, 与 monitor_convert_aux 一致 */
+    static const char *const s_ch3_name[16] = {
+        "3V3_CUR", "12V0_CUR", "5V0_CUR", "28V0_CUR",  /* XCA4001 轨电流 */
+        "HAL0_V",  "HAL1_V",                   /* GSDJ HAL 电压 */
+        "28V0_V",  "12V0_V", "5V0_V", "3V3_V",   /* 恒压源电压 */
+        "DYGY_FLT", "GSDJ_FLT", "---", "---"     /* FAULT 模拟量 */
+    };
+
     const s32 *raw[4]  = { s_raw_v, s_raw_i, s_raw_t, s_raw_ch3 };
     const u16 *valid[4] = { &s_raw_v_valid, &s_raw_i_valid, &s_raw_t_valid, &s_raw_ch3_valid };
+    const char *const *name_tbl[4] = { s_ch0_name, s_ch1_name, s_ch2_name, s_ch3_name };
     u8 i, a;
     u16 id;
 
-    /* 4 片 ADC 各通道原始码 + 电压 (仅有效通道) */
+    /* 4 片 ADC 各通道原始码 + 电压 (仅有效通道) - 显示 ADC 位号 + 通道名称 */
     for (i = 0u; i < 4u; i++) {
-        TRACE_OUT_2(DEBUG_OUT, "[DIAG] ADC %s: ", s_ain_tag[i]);
+        TRACE_OUT_2(DEBUG_OUT, "[DIAG] %s(ADC_%s): ", s_adc_refdes[i], s_ain_tag[i]);
         for (a = 0u; a < MON_AIN_NUM; a++) {
             if ((*valid[i] & MON_ALARM_BIT(a)) == 0u) {
                 continue;
             }
             s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
-            TRACE_OUT_2(DEBUG_OUT, "a%02u=%ld(%d.%03dV) ", a, (long)raw[i][a],
+            TRACE_OUT_2(DEBUG_OUT, "%s=%ld(%d.%03dV) ", name_tbl[i][a], (long)raw[i][a],
                       (int)(mv / 1000), (int)(mv % 1000));
         }
         TRACE_OUT_2(DEBUG_OUT, "\r\n");
