@@ -46,9 +46,9 @@ static void diag_xca_dump(void)
 */
 void diag_init(void)
 {
-    /* 初始化 SEGGER RTT 通道 2 (buffer 2), 仅在 CHIP_TEST_LOG=1 时使用 */
-    static char s_diag_rtt_buf[8192];
-    SEGGER_RTT_ConfigUpBuffer(2, "DIAG", s_diag_rtt_buf, sizeof(s_diag_rtt_buf), SEGGER_RTT_MODE_NO_BLOCK_TRIM);
+//    /* 初始化 SEGGER RTT 通道 2 (buffer 2), 仅在 CHIP_TEST_LOG=1 时使用 */
+//    static char s_diag_rtt_buf[8192];
+//    SEGGER_RTT_ConfigUpBuffer(2, "DIAG", s_diag_rtt_buf, sizeof(s_diag_rtt_buf), SEGGER_RTT_MODE_NO_BLOCK_TRIM);
 
 #if DIAG_EFUSE_ACTIVE_TEST
     power_diag_test_seq();

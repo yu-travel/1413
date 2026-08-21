@@ -94,7 +94,7 @@ typedef unsigned long long u64;
 #define TRACE_OUT_2(flag, ...)       \
     do {                           \
         if(flag) {                 \
-            myprintf_2(##__VA_ARGS__);   \
+            myprintf(##__VA_ARGS__);   \
         }                          \
     } while(0)
 		

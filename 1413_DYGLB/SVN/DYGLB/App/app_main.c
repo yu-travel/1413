@@ -239,9 +239,9 @@ void app_tasks_init(void)
 {
     softtimer_start(&s_timer_monitor,   TASK_MONITOR_MS,   task_monitor_cb,   &s_timer_monitor);
     softtimer_start(&s_timer_convert,   TASK_CONVERT_MS,   task_convert_cb,   &s_timer_convert);
-    softtimer_start(&s_timer_upload,    TASK_UPLOAD_MS,    task_upload_cb,    &s_timer_upload);
-    softtimer_start(&s_timer_proto,     TASK_PROTO_MS,     task_proto_cb,     &s_timer_proto);
-    softtimer_start(&s_timer_heartbeat, TASK_HEARTBEAT_MS, task_heartbeat_cb, &s_timer_heartbeat);
+    //softtimer_start(&s_timer_upload,    TASK_UPLOAD_MS,    task_upload_cb,    &s_timer_upload);
+    //softtimer_start(&s_timer_proto,     TASK_PROTO_MS,     task_proto_cb,     &s_timer_proto);
+    //softtimer_start(&s_timer_heartbeat, TASK_HEARTBEAT_MS, task_heartbeat_cb, &s_timer_heartbeat);
     softtimer_start(&s_timer_diag,      TASK_DIAG_MS,      task_diag_cb,      &s_timer_diag);
 }
 
@@ -301,9 +301,10 @@ int main(void)
 {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);    /* 中断优先级分组 2 */
     delay_init(168);                                   /* SysTick 延时, 168MHz */
+		TRACE_OUT(DEBUG_OUT, "enter main!\r\n");
     bsp_board_init();                                  /* GPIO/JTAG 板级初始化 */
 #if ADC_REG_DUMP_TEST
-    adc_reg_dump_test();                               /* 联调诊断: dump 4 片 ADC 寄存器默认值 */
+    //adc_reg_dump_test();                               /* 联调诊断: dump 4 片 ADC 寄存器默认值 */
 #endif
     usart1_init(115200);                               /* 调试串口 */
     bsp_spi_init();                                    /* FPGA SPI1 */
@@ -317,14 +318,33 @@ int main(void)
     /* diag_init() 仅在 CHIP_TEST_LOG=1 时使用 */
     (void)0;  /* placeholder to avoid empty else */
 #endif
-    bsp_iwdg_init();                                   /* 1.6s 独立看门狗 */
+    //bsp_iwdg_init();                                   /* 1.6s 独立看门狗 */
     app_tasks_init();                                  /* 注册周期任务 */
     TRACE_OUT(DEBUG_OUT, "<DYGLB> init done, enter loop\r\n");
+		
+//		DEV_INVALID = 0,    /* 无效设备 (占位/未连接) */
+//    DEV_KF = 1, DEV_DTJ, DEV_DYGY, DEV_QGSJ, DEV_SFXJ1, DEV_SFXJ2,
+//    DEV_GSDJ, DEV_WAOXJ, DEV_HWXJ1, DEV_HWXJ2, DEV_HWXJ3,
+//    DEV_HJJC1, DEV_HJJC2, DEV_HJJC3, DEV_PD, DEV_NUM = 16
+
+	
+		/* 打开所有EN开关 */
+		//power_apply_state((u16)(1u<<DEV_HJJC3));
+		//power_apply_state((u16)((0xFFFF)&(~(0x1u<<DEV_DTJ))));
+		power_apply_state((u16)(0xFFFF));
+    //while(1);
+
 
     while (1) {
-        softtimer_loop();                              /* 分发到期任务回调 */
-        bsp_iwdg_feed();                               /* 喂狗 */
+      softtimer_loop();                              /* 分发到期任务回调 */
+      bsp_iwdg_feed();                               /* 喂狗 */
 			//TRACE_OUT(DEBUG_OUT, "<DYGLB> runing\r\n");
 			//printf("running\r\n");
+			
+//			monitor_task();
+//			monitor_convert_all();
+//			diag_task();
+//			for(int i=0;i<20;i++)	delay_ms(500);
+			
     }
 }

@@ -34,10 +34,13 @@
     寄存器高 2 位地址前缀命令 (官方手册 V1.8 表18, 寄存器读写前必发)
     命令字: 8'b101_100_A5A4
 ============================================================*/
-#define LC1258_CMD_ADDR_MSB_00  0xB0u   /* 1011 0000: 寄存器地址高 2 位 A5A4 = 00 (本工程所有寄存器 00h~09h 用此) */
-#define LC1258_CMD_ADDR_MSB_01  0xB1u   /* 1011 0001: A5A4 = 01 */
-#define LC1258_CMD_ADDR_MSB_10  0xB2u   /* 1011 0010: A5A4 = 10 (REF 20h / CLK 2Ah 用) */
-#define LC1258_CMD_ADDR_MSB_11  0xB3u   /* 1011 0011: A5A4 = 11 */
+#define LC1258_CMD_ADDR_MSB_00  0xB0u   /* 1011 0000: 寄存器地址高 2 位 A5A4 = 00 (寄存器 00h~0Fh 用此) */
+#define LC1258_CMD_ADDR_MSB_01  0xB1u   /* 1011 0001: A5A4 = 01 (寄存器 10h~1Fh: 如 14h/1Bh/1Eh) */
+#define LC1258_CMD_ADDR_MSB_10  0xB2u   /* 1011 0010: A5A4 = 10 (寄存器 20h~2Fh: REF 20h / CLK 2Ah) */
+#define LC1258_CMD_ADDR_MSB_11  0xB3u   /* 1011 0011: A5A4 = 11 (寄存器 30h~3Fh) */
+
+/* 按寄存器 6 位地址自动计算前缀命令字: A5A4 = addr[5:4], 2026-08-21 扩展寄存器访问 */
+#define LC1258_CMD_ADDR_MSB(addr)   ((u8)(0xB0u | ((addr) >> 4)))
 
 /*============================================================
     命令字节: C[2:0] | MUL | A[3:0] (MSB 先行)
@@ -62,6 +65,11 @@
 #define LC1258_REG_GPIOD   0x08u   /* GPIO 电平寄存器 */
 #define LC1258_REG_ID      0x09u   /* 只读芯片 ID (固定 0x8B) */
 
+/* 寄存器 6 位地址空间上限 0x3F (手册 V1.8); 常用配置区 00h~09h,
+   扩展区如 14h/1Bh/1Eh/20h(REF)/2Ah(CLK)/0Bh 等可经 RREG/WREG 访问,
+   2026-08-21 放开读写函数地址限制 (原限 0x00~0x09) */
+#define LC1258_REG_ADDR_MAX    0x3Fu
+
 #define LC1258_CHIP_ID     0x8Bu   /* 芯片 ID 固定值 (官方手册 P33 表20, 厂商确认), 用于上电校验 */
 
 /* 状态字节位定义 (32bit 读数据首字节) */
@@ -70,6 +78,19 @@
 #define LC1258_STAT_SUPPLY 0x20u   /* 模拟电源低于 4.3V 告警 */
 #define LC1258_STAT_CHID   0x1Fu   /* 当前采样通道编号掩码 (Auto-Scan 有效) */
 
+/*============================================================
+    CHID 编码表 (厂商参考工程 ads1258.h L107~132, 2026-08-21 板上验证):
+    CHID ≠ AIN 引脚号! 单端通道 CHID = AIN + 8:
+      0x00~07 = DIFF0~7  差分通道 (MUXDIF, 本板未用)
+      0x08~0F = AIN0~AIN7  (MUXSG0)
+      0x10~17 = AIN8~AIN15 (MUXSG1)
+      0x18~1D = SYSRED 内部监测 (OFFSET/VCC/TEMP/GAIN/REF)
+      0x1F    = Fixed 固定通道模式
+    上层取到 chid 后必须经 lc1258_chid_to_ain() 换算才能作数组下标
+============================================================*/
+#define LC1258_CHID_AIN_BASE   0x08u   /* 单端通道 CHID 起始 (AIN0) */
+#define LC1258_CHID_AIN_LAST   0x17u   /* 单端通道 CHID 结束 (AIN15) */
+
 u8  lc1258_init(lc1258_handle_t *h);
 u8  lc1258_write_reg(lc1258_handle_t *h, u8 addr, u8 val);
 u8  lc1258_read_reg(lc1258_handle_t *h, u8 addr, u8 *val);
@@ -77,5 +98,6 @@ void lc1258_start(lc1258_handle_t *h);
 void lc1258_stop(lc1258_handle_t *h);
 u8  lc1258_data_ready(lc1258_handle_t *h);
 s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid);
+u8  lc1258_chid_to_ain(u8 chid);   /* CHID→AIN(0~15); 0xFF=DIFF/SYSRED/Fixed 丢弃 */
 
 #endif /* __LC1258_H_ */

@@ -25,7 +25,7 @@
 #define PROTO_TX_BUF_LEN     128             /* 发送缓冲, >= 上传帧总长 104B */
 
 /* ---------------- 采集换算系数 (doc 权威值, 联调可用 Flash k/b 校准修正) ---------------- */
-#define ADC_VREF            2.5f        /* LC1258 外部基准电压, 待确认 (联调校准) */
+#define ADC_VREF            4.096f        /* LC1258 外部基准电压, 待确认 (联调校准) */
 #define ADC_FS_CODE         8388608.0f  /* 2^23: 手册默认输出模式 1LSB=VREF/800000h, 满量程 ±VREF (驱动 E6 采样读回完整位流, 2026-08-18) */
 /* 换算公式: V_adc = code / ADC_FS_CODE × ADC_VREF (手册 P23 默认模式, 无 1.06 系数) */
 #define MON_COEF_V_5048     8.0f        /* MAC5048 VOUT 分压系数 */
@@ -55,12 +55,12 @@
 #define DEFAULT_I_LIMIT_MA   0           /* 上电默认限流 0mA=关断式, FPGA 须先下发限流再开电, 待联调确认 */
 
 /* ---------------- 周期任务参数 (app_main.c 注册 MultiTimer 周期, 单位 ms) ---------------- */
-#define TASK_MONITOR_MS      1           /* 1ms 采集轮询 (DRDY 就绪读样本) */
-#define TASK_CONVERT_MS      100         /* 100ms 码值换算+校准 + 告警判定 */
-#define TASK_UPLOAD_MS       100         /* 100ms 上传帧组包发送 (MCU->FPGA) */
-#define TASK_PROTO_MS        200         /* 200ms 下发帧收发与指令消费 (FPGA->MCU) */
+#define TASK_MONITOR_MS      100           /* 1ms 采集轮询 (DRDY 就绪读样本) */
+#define TASK_CONVERT_MS      1000         /* 100ms 码值换算+校准 + 告警判定 */
+#define TASK_UPLOAD_MS       1000         /* 100ms 上传帧组包发送 (MCU->FPGA) */
+#define TASK_PROTO_MS        1000         /* 200ms 下发帧收发与指令消费 (FPGA->MCU) */
 #define TASK_HEARTBEAT_MS    1000        /* 1000ms RTT 心跳日志 (新板无调试 LED) */
-#define TASK_DIAG_MS         5000        /* 5000ms 芯片联调诊断日志周期 (app_diag.c) */
+#define TASK_DIAG_MS         10000        /* 5000ms 芯片联调诊断日志周期 (app_diag.c) */
 
 /* ---------------- 联调诊断开关 ---------------- */
 #define ADC_REG_DUMP_TEST    1           /* 1=上电 dump 4 片 LC1258 全部寄存器默认值 (RTT 输出, 诊断后置 0) */

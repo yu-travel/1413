@@ -423,7 +423,8 @@ void monitor_init(void)
     @brief      : 采集周期任务 (每 1ms 调用)
     @note       : 轮询 4 片 ADC DRDY, 就绪则读 1 样本, 按 ADC 实例分派:
                   CH0→s_raw_v, CH1→s_raw_i, CH2→s_raw_t, CH3→s_raw_ch3;
-                  chid 即 AIN 通道号, 越界 (≥16) 丢弃
+                  状态字节 CHID=AIN+8 (厂商编码), 须换算后作槽位下标,
+                  DIFF/SYSRED/Fixed 通道丢弃 (lc1258_chid_to_ain)
     @param[in]  : none
     @param[out] : none
     @retval     : none
@@ -432,6 +433,7 @@ void monitor_task(void)
 {
     u8  i;
     u8  chid;
+    u8  ain;
     s32 raw;
 
     for (i = 0u; i < 4u; i++) {
@@ -440,26 +442,27 @@ void monitor_task(void)
         }
 
         raw = lc1258_read_channel((lc1258_handle_t *)&g_adc_pin_map[i], &chid);
-        if (chid >= MON_AIN_NUM) {
-            continue;                       /* 状态字节 CHID 异常, 丢弃 */
+        ain = lc1258_chid_to_ain(chid);     /* CHID=AIN+8, 换算后作槽位下标 */
+        if (ain >= MON_AIN_NUM) {
+            continue;                       /* DIFF/SYSRED/Fixed 通道, 丢弃 */
         }
 
         switch (i) {
         case ADC_IDX_CH0:
-            s_raw_v[chid] = raw;
-            s_raw_v_valid |= MON_ALARM_BIT(chid);
+            s_raw_v[ain] = raw;
+            s_raw_v_valid |= MON_ALARM_BIT(ain);
             break;
         case ADC_IDX_CH1:
-            s_raw_i[chid] = raw;
-            s_raw_i_valid |= MON_ALARM_BIT(chid);
+            s_raw_i[ain] = raw;
+            s_raw_i_valid |= MON_ALARM_BIT(ain);
             break;
         case ADC_IDX_CH2:
-            s_raw_t[chid] = raw;
-            s_raw_t_valid |= MON_ALARM_BIT(chid);
+            s_raw_t[ain] = raw;
+            s_raw_t_valid |= MON_ALARM_BIT(ain);
             break;
         default:                            /* ADC_IDX_CH3 */
-            s_raw_ch3[chid] = raw;
-            s_raw_ch3_valid |= MON_ALARM_BIT(chid);
+            s_raw_ch3[ain] = raw;
+            s_raw_ch3_valid |= MON_ALARM_BIT(ain);
             break;
         }
     }
@@ -600,7 +603,7 @@ void monitor_diag_dump(void)
         TRACE_OUT_2(DEBUG_OUT, "[DIAG] %s(ADC_%s): ", s_adc_refdes[i], s_ain_tag[i]);
         for (a = 0u; a < MON_AIN_NUM; a++) {
             if ((*valid[i] & MON_ALARM_BIT(a)) == 0u) {
-                continue;
+                continue;                   /* 未采到样本的槽位不打印 (CHID 修复后 valid 重新可信) */
             }
             s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
             TRACE_OUT_2(DEBUG_OUT, "a%02u(%s)=%ld(%d.%03dV) ", a, name_tbl[i][a], (long)raw[i][a],

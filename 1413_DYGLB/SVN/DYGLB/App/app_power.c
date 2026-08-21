@@ -303,6 +303,7 @@ void power_diag_dump(void)
                   (int)(t10 / 10), (int)(t10 % 10));
     }
 }
+}
 
 /*
     @brief      : 联调诊断: 15 路逐路主动上电测试 (真实供电!)
@@ -325,8 +326,7 @@ void power_diag_test_seq(void)
     u16 pass = 0u;
     u16 fail = 0u;
 
-    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === efuse active test begin (limit=%u mA) ===\r\n",
-              DIAG_TEST_I_LIMIT_MA);
+    TRACE_OUT_2(DEBUG_OUT, "[DIAG] === efuse active test begin (limit=%u mA) ===\r\n",DIAG_TEST_I_LIMIT_MA);
 
     for (id = 1u; id < DEV_NUM; id++) {
         const dev_map_t *dev = &g_dev_map[id];

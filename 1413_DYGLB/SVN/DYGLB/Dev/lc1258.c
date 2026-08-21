@@ -1,4 +1,5 @@
 #include "lc1258.h"
+#include "app_config.h"
 #include "delay.h"
 
 /*
@@ -110,6 +111,49 @@ static void lc1258_cs_setup_delay(void)
     delay_us(1);                                        /* ≥125ns 时序要求, 1us 保守裕量 */
 }
 
+// 全部寄存器地址列表
+uint8_t reg_addr_list[] = {
+    0x00,
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06,
+    0x07,
+    0x08,
+    0x09,
+    0x14,
+    0x1B,
+    0x20,
+    0x2A,
+    0x0B,
+    0x1E
+};
+#define REG_LIST_COUNT (sizeof(reg_addr_list)/sizeof(reg_addr_list[0]))
+
+
+void lc1258_dump_all_reg(lc1258_handle_t *h)
+{
+    uint8_t rb;
+    int ret;
+    for(int i = 0; i < REG_LIST_COUNT; i++)
+    {
+        uint8_t reg_addr = reg_addr_list[i];
+        ret = lc1258_read_reg(h, reg_addr, &rb);
+        if(ret != 0)
+        {
+            //读取成功，打印地址+读到的值
+            TRACE_OUT_2(DEBUG_OUT, "[DIAG] LC1258 Reg[0x%02X] = 0x%02X read success!\r\n", reg_addr, rb);
+        }
+        else
+        {
+            //SPI读取寄存器失败
+            TRACE_OUT_2(DEBUG_OUT, "[DIAG] LC1258 Reg[0x%02X] read FAILED, ret=%d\r\n", reg_addr, ret);
+        }
+    }
+}
+
 /*
     @brief      : 初始化 LC1258
     @note       : 流程按厂商模板 adcStartupRoutine 对齐 (2026-08-17):
@@ -139,7 +183,7 @@ u8 lc1258_init(lc1258_handle_t *h)
     GPIO_ResetBits(h->start.port, h->start.pin);        /* START=0, 复位期间停止转换 */
 
     GPIO_ResetBits(h->rst.port, h->rst.pin);            /* RST=0, 触发硬件复位 */
-    delay_us(100);                                      /* ≥2 个系统时钟 (125ns), 保守 100us */
+    delay_ms(5);                                      /* ≥2 个系统时钟 (125ns), 保守 100us */
     GPIO_SetBits(h->rst.port, h->rst.pin);              /* RST=1, 释放复位 */
     delay_ms(5);                                        /* tWAKE: 模板 delay_ms(5), 等待默认寄存器加载完成 */
 
@@ -149,17 +193,37 @@ u8 lc1258_init(lc1258_handle_t *h)
     if (id != LC1258_CHIP_ID) {                         /* 芯片 ID 校验 */
         return 0;
     }
+		
+	
+//		lc1258_write_reg(h, LC1258_REG_MUXSG0,  0x55);      /* 单端通道 AIN0~AIN7 全部开启 */
+//    lc1258_write_reg(h, LC1258_REG_MUXSG1,  0x77);      /* 单端通道 AIN8~AIN15 全部开启 */
+//    if (lc1258_read_reg(h, LC1258_REG_MUXSG0, &rb) == 0 || rb != 0x55) {
+//						TRACE_OUT_2(DEBUG_OUT, "[DIAG] szy set LC1258_REG_MUXSG0 register fail!\r\n");
+//    }else
+//		{
+//						TRACE_OUT_2(DEBUG_OUT, "[DIAG] szy set LC1258_REG_MUXSG0 register success!\r\n");
+//		}
+//    if (lc1258_read_reg(h, LC1258_REG_MUXSG1, &rb) == 0 || rb != 0x77) {
+//            TRACE_OUT_2(DEBUG_OUT, "[DIAG] szy set LC1258_REG_MUXSG1 register fail!\r\n");
+//    }else{
+//            TRACE_OUT_2(DEBUG_OUT, "[DIAG] szy set LC1258_REG_MUXSG1 register success!\r\n");
+//		}
+#if ADC_REG_DUMP_TEST
+		TRACE_OUT_2(DEBUG_OUT, "[DIAG] -----------rst----------\r\n");
+		lc1258_dump_all_reg(h);
+#endif
 
     /* 全量写 9 个寄存器 (与模板 initRegisterMap 一致, 复位后本为默认值, 重写保证确定性) */
     lc1258_write_reg(h, LC1258_REG_CONFIG0, 0x0A);      /* Auto-Scan + 带状态字节, 内部直连, 不开斩波 */
     lc1258_write_reg(h, LC1258_REG_CONFIG1, 0x41);      /* Standby + DLY=64us + 无偏置 + DRATE=01 (模板值: CONFIG1_DLY_64us|CONFIG1_DRATE_7813SPS) */
+		//lc1258_write_reg(h, LC1258_REG_CONFIG1, 0x03);      /* Standby + DLY=64us + 无偏置 + DRATE=01 (模板值: CONFIG1_DLY_64us|CONFIG1_DRATE_7813SPS) */
     lc1258_write_reg(h, LC1258_REG_MUXSCH,  0x00);      /* Fixed 模式通道选择 (Auto-Scan 下无效, 写默认) */
     lc1258_write_reg(h, LC1258_REG_MUXDIF,  0x00);      /* 差分通道全部关闭 */
     lc1258_write_reg(h, LC1258_REG_MUXSG0,  0xFF);      /* 单端通道 AIN0~AIN7 全部开启 */
     lc1258_write_reg(h, LC1258_REG_MUXSG1,  0xFF);      /* 单端通道 AIN8~AIN15 全部开启 */
     lc1258_write_reg(h, LC1258_REG_SYSRED,  0x00);      /* 内部监测通道全部关闭 */
     lc1258_write_reg(h, LC1258_REG_GPIOC,   0xFF);      /* 芯片 GPIO 全输入 (默认) */
-    lc1258_write_reg(h, LC1258_REG_GPIOD,   0x00);      /* 芯片 GPIO 输出电平清零 (默认) */
+    //lc1258_write_reg(h, LC1258_REG_GPIOD,   0x00);      /* 芯片 GPIO 输出电平清零 (默认) */
 
     /* 回读关键寄存器校验 (模板 write 后回读验证) */
     if (lc1258_read_reg(h, LC1258_REG_CONFIG0, &rb) == 0 || rb != 0x0A) {
@@ -174,6 +238,12 @@ u8 lc1258_init(lc1258_handle_t *h)
     if (lc1258_read_reg(h, LC1258_REG_MUXSG1, &rb) == 0 || rb != 0xFF) {
         return 0;
     }
+		
+		
+#if ADC_REG_DUMP_TEST
+		TRACE_OUT_2(DEBUG_OUT, "[DIAG] -----------set----------\r\n");
+		lc1258_dump_all_reg(h);
+#endif
 
     return 1;
 }
@@ -181,24 +251,25 @@ u8 lc1258_init(lc1258_handle_t *h)
 /*
     @brief      : 写单个配置寄存器
     @note       : 官方手册 V1.8: 寄存器 6 位地址, 写前必须先发高 2 位地址前缀命令
-                  (本工程寄存器 00h~09h A5A4=00 → 前缀 0xB0);
+                  (前缀按 addr[5:4] 动态计算: 00h~0Fh→0xB0, 10h~1Fh→0xB1,
+                   20h~2Fh→0xB2, 30h~3Fh→0xB3, 见 LC1258_CMD_ADDR_MSB);
                   随后 WREG 命令 (011 0 A[3:0], MUL=0), 命令后紧跟 1 字节数据
     @param[in]  : h     LC1258 实例句柄
-    @param[in]  : addr  寄存器地址 0x00~0x09
+    @param[in]  : addr  寄存器地址 0x00~0x3F (常用配置区 00h~09h)
     @param[in]  : val   待写入寄存器值
     @param[out] : none
     @retval     : 1 = 成功; 0 = 失败 (句柄/地址无效)
 */
 u8 lc1258_write_reg(lc1258_handle_t *h, u8 addr, u8 val)
 {
-    if (h == NULL || addr > LC1258_REG_ID) {
+    if (h == NULL || addr > LC1258_REG_ADDR_MAX) {
         return 0;
     }
 
     GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0, 开启 SPI 总线 */
     lc1258_cs_setup_delay();                            /* td(SCCS) ≥ 125ns */
 
-    lc1258_spi_byte(h, LC1258_CMD_ADDR_MSB_00);         /* 高 2 位地址前缀 (A5A4=00), 必发 */
+    lc1258_spi_byte(h, LC1258_CMD_ADDR_MSB(addr));      /* 高 2 位地址前缀 (按 addr 动态), 必发 */
     lc1258_spi_byte(h, (u8)(LC1258_CMD_WREG | (addr & 0x0F)));  /* 命令 011 0 A[3:0] */
     lc1258_spi_byte(h, val);                            /* 1 字节寄存器数据 */
 
@@ -211,24 +282,24 @@ u8 lc1258_write_reg(lc1258_handle_t *h, u8 addr, u8 val)
 /*
     @brief      : 读单个配置寄存器
     @note       : 官方手册 V1.8: 寄存器 6 位地址, 读前必须先发高 2 位地址前缀命令
-                  (本工程寄存器 00h~09h A5A4=00 → 前缀 0xB0);
+                  (前缀按 addr[5:4] 动态计算, 见 LC1258_CMD_ADDR_MSB);
                   随后 RREG 命令 (010 0 A[3:0], MUL=0), 数据字节按 E6 配方读取
                   (bit7 预取 + 下降沿瞬间采样, 见 lc1258_read_byte_mode1)
     @param[in]  : h     LC1258 实例句柄
-    @param[in]  : addr  寄存器地址 0x00~0x09
+    @param[in]  : addr  寄存器地址 0x00~0x3F (常用配置区 00h~09h)
     @param[out] : val   读回的寄存器值
     @retval     : 1 = 成功; 0 = 失败 (句柄/地址/出参无效)
 */
 u8 lc1258_read_reg(lc1258_handle_t *h, u8 addr, u8 *val)
 {
-    if (h == NULL || val == NULL || addr > LC1258_REG_ID) {
+    if (h == NULL || val == NULL || addr > LC1258_REG_ADDR_MAX) {
         return 0;
     }
 
     GPIO_ResetBits(h->cs.port, h->cs.pin);              /* CS=0, 开启 SPI 总线 */
     lc1258_cs_setup_delay();                            /* td(SCCS) ≥ 125ns */
 
-    lc1258_spi_byte(h, LC1258_CMD_ADDR_MSB_00);         /* 高 2 位地址前缀 (A5A4=00), 必发 */
+    lc1258_spi_byte(h, LC1258_CMD_ADDR_MSB(addr));      /* 高 2 位地址前缀 (按 addr 动态), 必发 */
     lc1258_spi_byte(h, (u8)(LC1258_CMD_RREG | (addr & 0x0F)));  /* 命令 010 0 A[3:0] */
     *val = lc1258_read_byte_mode1(h);                   /* 数据字节: E6 配方 */
 
@@ -335,6 +406,28 @@ s32 lc1258_read_channel(lc1258_handle_t *h, u8 *chid)
     }
 
     raw = (s32)(((u32)b1 << 24) | ((u32)b2 << 16) | ((u32)b3 << 8)) >> 8;   /* 24bit 补码符号扩展 */
+		
+		
 
     return raw;
+}
+
+/*
+    @brief      : 状态字节 CHID → AIN 通道号换算
+    @note       : CHID 编码表 (厂商参考工程 ads1258.h L107~132, 2026-08-21
+                  板上验证): 0x00~07=DIFF0~7 差分; 0x08~0F=AIN0~7 (MUXSG0);
+                  0x10~17=AIN8~15 (MUXSG1); 0x18~1D=SYSRED; 0x1F=Fixed 模式。
+                  即单端通道 CHID = AIN + 8, 历史上曾把 CHID 直接当 AIN
+                  作数组下标, 导致 AIN0~7 数据错存槽 8~15 (通道名错位)、
+                  AIN8~15 (CHID≥16) 被丢弃, 详见 doc/LC1258_CHID修复报告.md
+    @param[in]  : chid  状态字节低 5 位原始值
+    @param[out] : none
+    @retval     : 0~15 = AIN 通道号; 0xFF = 差分/SYSRED/Fixed (上层丢弃)
+*/
+u8 lc1258_chid_to_ain(u8 chid)
+{
+    if (chid < LC1258_CHID_AIN_BASE || chid > LC1258_CHID_AIN_LAST) {
+        return 0xFFu;                                    /* DIFF/SYSRED/Fixed, 丢弃 */
+    }
+    return (u8)(chid - LC1258_CHID_AIN_BASE);
 }

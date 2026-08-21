@@ -59,7 +59,6 @@ void efuse_clear_latch(efuse_handle_t *h)
     if (h == NULL) {
         return;
     }
-
     GPIO_ResetBits(h->en_port, h->en_pin);              /* EN=0, 进入清除锁存低脉冲 */
     delay_us(100);                                      /* 低电平保持 100us, 满足两芯片清锁存要求 */
     GPIO_SetBits(h->en_port, h->en_pin);                /* EN=1, 清除锁存并重新软启动 */
