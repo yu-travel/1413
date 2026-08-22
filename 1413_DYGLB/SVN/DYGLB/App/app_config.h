@@ -52,7 +52,7 @@
 #define CAL_NUM_CH          3           /* 每设备 3 组校准: V/I/T */
 
 /* ---------------- 电源控制参数 ---------------- */
-#define DEFAULT_I_LIMIT_MA   0           /* 上电默认限流 0mA=关断式, FPGA 须先下发限流再开电, 待联调确认 */
+#define DEFAULT_I_LIMIT_MA   3000           /* 上电默认限流 0mA=关断式, FPGA 须先下发限流再开电, 待联调确认 */
 
 /* ---------------- 周期任务参数 (app_main.c 注册 MultiTimer 周期, 单位 ms) ---------------- */
 #define TASK_MONITOR_MS      100           /* 1ms 采集轮询 (DRDY 就绪读样本) */

@@ -312,8 +312,8 @@ int main(void)
     softtimer_init();                                  /* MultiTimer 安装 tick 源 */
     power_init();                                      /* DAC + 默认限流 0mA + EN 全关 */
     monitor_init();                                    /* 4 片 ADC ID 校验 + START + Flash 校准 */
-    #if CHIP_TEST_LOG
-    diag_init();                                       /* 联调诊断: 可选 15 路主动上电测试 (watchdog 启动前) */
+#if CHIP_TEST_LOG
+    //diag_init();                                       /* 联调诊断: 可选 15 路主动上电测试 (watchdog 启动前) */
 #else
     /* diag_init() 仅在 CHIP_TEST_LOG=1 时使用 */
     (void)0;  /* placeholder to avoid empty else */

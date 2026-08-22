@@ -42,7 +42,8 @@ static u16 s_raw_i_valid;
 static u16 s_raw_t_valid;
 static u16 s_raw_ch3_valid;
 
-/* Flash 45 组校准系数 (bsp_flash_cal_read 填充, 失败时默认 k=1 b=0) */
+/* 校准系数 45 组: 默认 k=1 b=0 直通 (新板无 Flash, monitor_init 显式初始化;
+   框架保留, 后续如需可经协议下发覆盖, bsp_flash_cal_read 已废弃) */
 static float s_k[CAL_NUM];
 static float s_b[CAL_NUM];
 
@@ -389,8 +390,8 @@ static void monitor_alarm_eval(void)
                   lc1258_start 进入 Auto-Scan; 单片校验失败置
                   s_adc_fault_mask 对应位降级运行 (不阻塞系统启动,
                   CH0/CH1 失效设备由告警判定强制置位, 见 monitor_alarm_eval);
-                  读取 Flash 45 组校准系数, 失败时 bsp_flash_cal_read
-                  内部已填充默认 k=1 b=0;
+                  校准系数显式初始化 k=1 b=0 直通 (新版板子去掉 Flash,
+                  不再读 Flash 校准, bsp_flash_cal_read 废弃保留);
                   g_adc_pin_map 为 const 只读表, Dev 层接口未声明 const,
                   此处强制转换仅去除 const 限定 (驱动不写句柄内容)
     @param[in]  : none
@@ -417,6 +418,14 @@ void monitor_init(void)
 //    if (bsp_flash_cal_read(s_k, s_b, CAL_NUM) == 0u) {
 //        TRACE_OUT(DEBUG_OUT, "monitor: flash cal read fail, use k=1 b=0\r\n");
 //    }
+
+    /* 新版板子去掉 Flash, 不再读 Flash 校准 (bsp_flash_cal_read 废弃保留);
+       校准框架保留, 默认 k=1 b=0 直通, 后续如需可经协议下发覆盖
+       (静态数组默认全 0, 若不初始化则设备物理量 0×x+0 全零, 2026-08-21 修复) */
+    for (i = 0u; i < CAL_NUM; i++) {
+        s_k[i] = 1.0f;
+        s_b[i] = 0.0f;
+    }
 }
 
 /*
@@ -560,7 +569,7 @@ void monitor_diag_dump(void)
     static const char *const s_ain_tag[4] = { "CH0(V)", "CH1(I)", "CH2(T)", "CH3(AUX)" };
     static const char *const s_fault_name[6] = { "NORMAL", "COMP", "MOS", "OTP/OVP", "OC", "SCP" };
     static const char *const s_adc_refdes[4] = { "U2", "U5", "U8", "U11" };
-    static const char *const s_adc_func[4]   = { "电压", "电流", "温度", "辅助" };
+    static const char *const s_adc_unit[4]   = { "V", "A", "T", "Nol" };
 
     /* ADC_CH0 (U2) 电压通道名: 索引 = AIN */
     static const char *const s_ch0_name[16] = {
@@ -589,7 +598,7 @@ void monitor_diag_dump(void)
         "3V3_CUR", "12V0_CUR", "5V0_CUR", "28V0_CUR",  /* XCA4001 轨电流 */
         "HAL0_V",  "HAL1_V",                   /* GSDJ HAL 电压 */
         "28V0_V",  "12V0_V", "5V0_V", "3V3_V",   /* 恒压源电压 */
-        "DYGY_FLT", "GSDJ_FLT", "---", "---"     /* FAULT 模拟量 */
+        "DYGY_FLT", "GSDJ_FLT", "---", "---", "---", "---"     /* FAULT 模拟量 */
     };
 
     const s32 *raw[4]  = { s_raw_v, s_raw_i, s_raw_t, s_raw_ch3 };
@@ -606,8 +615,8 @@ void monitor_diag_dump(void)
                 continue;                   /* 未采到样本的槽位不打印 (CHID 修复后 valid 重新可信) */
             }
             s32 mv = (s32)(monitor_raw_to_vadc(raw[i][a]) * 1000.0f);
-            TRACE_OUT_2(DEBUG_OUT, "a%02u(%s)=%ld(%d.%03dV) ", a, name_tbl[i][a], (long)raw[i][a],
-                      (int)(mv / 1000), (int)(mv % 1000));
+            TRACE_OUT_2(DEBUG_OUT, "a%02u(%s)=%ld(%d.%03d %s) ", a, name_tbl[i][a], (long)raw[i][a],
+                      (int)(mv / 1000), (int)(mv % 1000), s_adc_unit [i]);
         }
         TRACE_OUT_2(DEBUG_OUT, "\r\n");
     }
